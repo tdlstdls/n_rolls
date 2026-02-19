@@ -158,29 +158,28 @@ function generateTable() {
     const allNodes = []; 
 
     let masterHtml = isModeActive ? ConfirmManager.generateMasterInfoHtml(displayIds, gachaMaster, itemMaster) : '';
-    const headerTopBase = isModeActive ? 80 : 0; 
+    
     let html = masterHtml + '<table>';
     const extraCols = isModeActive ? 2 : 0;
     const trackColSpan = displayIds.length + extraCols;
     
     // ヘッダー1行目
-    html += `<tr class="sticky-header" style="top: ${headerTopBase}px;">
+    html += `<tr>
         <th class="col-num" rowspan="2">NO.</th>
         <th colspan="${trackColSpan}" class="track-header track-a">Track A</th>
         <th colspan="${trackColSpan}" class="track-header track-b">Track B</th>
     </tr>`;
 
     // ヘッダー2行目
-    html += `<tr class="sticky-header" style="top: ${headerTopBase + 25}px;">`;
+    html += `<tr>`;
     for(let i=0; i<2; i++) {
         const trackClass = (i === 0) ? 'track-a' : 'track-b';
         if (isModeActive) {
-            html += `<th class="col-seed ${trackClass}" style="width:100px;">S1</th>
-                     <th class="col-seed ${trackClass}" style="width:100px;">S2</th>`;
+            html += `<th class="col-seed ${trackClass}">S1</th>
+                     <th class="col-seed ${trackClass}">S2</th>`;
         }
         displayIds.forEach(id => {
             const isClickable = ["0", "64", "63", "65"].includes(id);
-            // 4列表示モード中は63/65のクリックイベントを抑制するスタイルにする
             const canClickNow = isClickable && !(isFourColumnMode && (id === "63" || id === "65"));
             const clickAttr = canClickNow ? `onclick="toggleGacha('${id}')" title="クリックで切り替え"` : "";
             const extraClass = canClickNow ? "clickable-header" : "";
@@ -212,15 +211,18 @@ function generateTable() {
         TARGET_GACHA_IDS.forEach((gId, idx) => {
             const resA = allResultsA[idx];
             const resB = allResultsB[idx];
+            // シミュレーション用に seedsConsumed を追加保存
             allNodes[currentIndexA][gId] = {
                 address: formatAddress(currentIndexA),
                 itemId: resA.itemId, rarityId: resA.rarity,
-                poolSize: resA.poolSize, reRollItemId: resA.reRollItemId
+                poolSize: resA.poolSize, reRollItemId: resA.reRollItemId,
+                seedsConsumed: resA.seedsConsumed 
             };
             allNodes[currentIndexB][gId] = {
                 address: formatAddress(currentIndexB),
                 itemId: resB.itemId, rarityId: resB.rarity,
-                poolSize: resB.poolSize, reRollItemId: resB.reRollItemId
+                poolSize: resB.poolSize, reRollItemId: resB.reRollItemId,
+                seedsConsumed: resB.seedsConsumed
             };
         });
 

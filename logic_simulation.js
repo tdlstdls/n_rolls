@@ -1,46 +1,106 @@
 ﻿/**
  * logic_simulation.js
- * 担当: 多機能・多ガチャ対応 最適ルート探索（グループ平均値一致・詳細スコア調整版）
+ * 担当: 多機能・多ガチャ対応 最適ルート探索（グローバル一致判定・線形シード同期版）
  */
 
-// デフォルトの重み設定
 const DEFAULT_ITEM_SCORES = {
     groups: {
-        DARK_NEKOME: 1000000000,
-        TREASURE_RADAR: 100000000,
-        VITAN_C: 10000000,
-        BLUE_ORBS: 1000000,
-        CHIBI: 100000,
-        BATTLE_ITEMS: 10000,
-        XP: 1000,
-        VITAN: 100,
-        BASIC: 10,
-        NEKOME: 1
+        DARK_NEKOME: 1000000000, TREASURE_RADAR: 100000000, VITAN_C: 10000000,
+        BLUE_ORBS: 1000000, CHIBI: 100000, BATTLE_ITEMS: 10000, XP: 1000,
+        VITAN: 100, BASIC: 10, NEKOME: 1
     },
     items: {
-        // バトルアイテム (平均 10,000): ネコボン > スニャ > ニャンピュ > スピダ > おかめ
         "2002": 12000, "2005": 11000, "2003": 10000, "2000": 9000, "2004": 8000,
-        
-        // XP (平均 1,000): 100万 > 50万 > 10万(福引) > 3万 > 1万 > 5千 > 10万(福引G)
         "2017": 1300, "2019": 1200, "2014": 1100, "2012": 1000, "2011": 900, "2010": 800, "2078": 700,
-        
-        // 猫目 (平均 1): 超激 > レア > EX > 激レア
-        "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4,
-        
-        // ビタン (平均 100): ビタンB > ビタンA
-        "2056": 110, "2055": 90
+        "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4, "2056": 110, "2055": 90
     },
-    // チケット別コスト（正の値。にゃんこチケットを温存するため重く設定）
-    costs: {
-        nyanko: 1000,
-        fukubikiG: 100,
-        fukubiki: 1
-    }
+    costs: { nyanko: 1000, fukubikiG: 100, fukubiki: 1 }
 };
 
+const GACHA_TICKET_TYPES = {
+    "0": "nyanko", "64": "nyanko", "65": "nyanko", "62": "fukubiki", "63": "fukubikiG"
+};
+
+function getSimAddress(idx) {
+    const row = Math.floor(idx / 2) + 1;
+    const side = (idx % 2 === 0) ? 'A' : 'B';
+    return `${side}${row}`;
+}
+
 /**
- * アイテムIDから所属グループを判定する
+ * 内部抽選ロジック
+ * @param {string} lastItemId 直前に「確定して排出された」アイテムID
  */
+function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
+    const gacha = gachaMaster[gachaId];
+    if (!gacha) return null;
+
+    const rng = new Xorshift32(seedsCache[nodeIdx]);
+    let consumed = 0;
+
+    // 1段階目：レアリティ判定 (S1, S3, S5...)
+    const s1 = rng.next(); consumed++;
+    const targetRarity = determineRarity(s1, gacha.rarityRates);
+    
+    let filteredPool = gacha.pool.filter(id => itemMaster[id].rarity === targetRarity);
+    if (filteredPool.length === 0) filteredPool = gacha.pool;
+
+    // 2段階目：スロット判定 (S2, S4, S6...)
+    const s2 = rng.next(); consumed++;
+    const charIndex = s2 % filteredPool.length;
+    const originalItemId = String(filteredPool[charIndex]);
+
+    let finalItemId = originalItemId;
+    let isReroll = false;
+
+    // 一致判定: 直前に排出されたアイテムIDと比較。バナーに関わらず共通のIDを使用。
+    // itemMaster[id].rarity
+    if (itemMaster[originalItemId].rarity === 1 && originalItemId === String(lastItemId) && filteredPool.length > 1) {
+        isReroll = true;
+        let excluded = [charIndex];
+        while (true) {
+            const divisor = filteredPool.length - excluded.length;
+            if (divisor <= 0) break;
+            
+            const sNext = rng.next(); consumed++;
+            const tempSlot = sNext % divisor;
+            const finalSlot = mapToActualSlot(tempSlot, excluded);
+            const nextItemId = String(filteredPool[finalSlot]);
+
+            // 再抽選結果が前回のアイテムと異なれば確定
+            if (nextItemId !== String(lastItemId)) {
+                finalItemId = nextItemId;
+                break;
+            }
+            excluded.push(finalSlot);
+            if (excluded.length >= 15) break;
+        }
+    }
+
+    return { itemId: finalItemId, consumed, isReroll, addr: getSimAddress(nodeIdx) };
+}
+
+function determineRarity(seed, rates) {
+    const r = seed % 10000;
+    let sum = 0;
+    const sortedKeys = Object.keys(rates).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    for (let key of sortedKeys) {
+        sum += rates[key];
+        if (r < sum) return parseInt(key, 10);
+    }
+    return 1;
+}
+
+function mapToActualSlot(tempSlot, excludedIndices) {
+    let sortedEx = [...excludedIndices].sort((a, b) => a - b);
+    let finalSlot = tempSlot;
+    for (let ex of sortedEx) {
+        if (finalSlot >= ex) finalSlot++;
+        else break;
+    }
+    return finalSlot;
+}
+
 function getItemGroup(itemId) {
     const id = String(itemId);
     if (id === "2058") return "DARK_NEKOME";
@@ -63,72 +123,35 @@ function getItemGroup(itemId) {
     return null;
 }
 
-const GACHA_TICKET_TYPES = {
-    "0": "nyanko", "64": "nyanko", "65": "nyanko", "62": "fukubiki", "63": "fukubikiG"
-};
-
-function simulateSingleRollMulti(startIdx, lastIds, gachaId, Nodes) {
-    const nodeSet = Nodes[startIdx];
-    if (!nodeSet || !nodeSet[gachaId]) return null;
-    const node = nodeSet[gachaId];
-    const lastId = lastIds[gachaId] || null;
-    const isMatch = (node.itemId === lastId);
-    const isRR = (node.rarityId === 1 && node.poolSize > 1 && (isMatch || window.forceRerollMode));
-    let finalId = node.itemId;
-    let useSeeds = 2; 
-    if (isRR && node.reRollItemId !== undefined) {
-        finalId = node.reRollItemId;
-        useSeeds = 3; 
-    }
-    return { 
-        itemId: finalId, rarity: itemMaster[finalId]?.rarity || 0,
-        isReroll: isRR, useSeeds, nextLastId: finalId, cellAddr: node.address
-    };
-}
-
-function findBestBeamSearchResult(dp, maxTotal, calculateScore) {
-    let bestOverall = null;
-    let bestScore = -Infinity;
-    for (let t = maxTotal; t >= 0; t--) {
-        const statesInTier = dp[t];
-        if (!statesInTier || statesInTier.size === 0) continue;
-        for (const state of statesInTier.values()) {
-            const score = calculateScore(state);
-            if (score > bestScore) {
-                bestScore = score;
-                bestOverall = state;
-            }
-        }
-    }
-    return bestOverall;
-}
-
-function runGachaSearch(Nodes, initialLastIds, limits, gachaIds, customWeights = null) {
-    const BEAM_WIDTH = 1000; 
+function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
+    const BEAM_WIDTH = 1000;
     const maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
     const dp = new Array(maxTotal + 1).fill(null).map(() => new Map());
-    
+
+    const seedsCache = new Array(2000);
+    seedsCache[0] = initialSeed >>> 0;
+    for (let i = 1; i < seedsCache.length; i++) {
+        const rng = new Xorshift32(seedsCache[i - 1]);
+        seedsCache[i] = rng.next();
+    }
+
     const weights = {
         groups: (customWeights && customWeights.groups) ? customWeights.groups : DEFAULT_ITEM_SCORES.groups,
         items: (customWeights && customWeights.items) ? customWeights.items : DEFAULT_ITEM_SCORES.items,
         costs: (customWeights && customWeights.costs) ? customWeights.costs : DEFAULT_ITEM_SCORES.costs
     };
-    
-    let startLastIds = {};
-    if (typeof initialLastIds === 'string' && initialLastIds !== 'none') {
-        gachaIds.forEach(id => startLastIds[id] = initialLastIds);
-    } else if (typeof initialLastIds === 'object' && initialLastIds !== null) {
-        startLastIds = { ...initialLastIds };
-    }
 
-    dp[0].set(`0_${JSON.stringify(startLastIds)}_0_0_0`, {
+    // 初期状態の lastItemId (単一の変数として管理)
+    let startLastId = (initialLastId === 'none' || !initialLastId) ? null : String(initialLastId);
+
+    dp[0].set(`0_${startLastId}_0_0_0`, {
         nodeIdx: 0,
-        lastIds: startLastIds,
+        lastItemId: startLastId,
         score: 0,
         usedNyanko: 0, usedFukubiki: 0, usedFukubikiG: 0,
         path: []
     });
-    
+
     const getPoint = (itemId) => {
         const idStr = String(itemId);
         if (weights.items[idStr] !== undefined) return weights.items[idStr];
@@ -152,29 +175,21 @@ function runGachaSearch(Nodes, initialLastIds, limits, gachaIds, customWeights =
                 if (!ticketType) continue;
 
                 let canRoll = false;
-                let ticketCost = 0;
-                if (ticketType === "nyanko" && state.usedNyanko < limits.nyanko) {
-                    canRoll = true; ticketCost = weights.costs.nyanko;
-                } else if (ticketType === "fukubiki" && state.usedFukubiki < limits.fukubiki) {
-                    canRoll = true; ticketCost = weights.costs.fukubiki;
-                } else if (ticketType === "fukubikiG" && state.usedFukubikiG < limits.fukubikiG) {
-                    canRoll = true; ticketCost = weights.costs.fukubikiG;
-                }
+                if (ticketType === "nyanko" && state.usedNyanko < limits.nyanko) canRoll = true;
+                else if (ticketType === "fukubiki" && state.usedFukubiki < limits.fukubiki) canRoll = true;
+                else if (ticketType === "fukubikiG" && state.usedFukubikiG < limits.fukubikiG) canRoll = true;
 
                 if (!canRoll) continue;
 
-                const res = simulateSingleRollMulti(state.nodeIdx, state.lastIds, gId, Nodes);
+                const res = simulateRollInternal(state.nodeIdx, gId, state.lastItemId, seedsCache);
                 if (!res) continue;
 
-                const itemId = res.itemId;
-                const point = getPoint(itemId);
-                
-                const nextLastIds = { ...state.lastIds };
-                nextLastIds[gId] = res.nextLastId;
+                const point = getPoint(res.itemId);
+                const ticketCost = weights.costs[ticketType] || 0;
 
                 const nextState = {
-                    nodeIdx: state.nodeIdx + res.useSeeds,
-                    lastIds: nextLastIds,
+                    nodeIdx: state.nodeIdx + res.consumed,
+                    lastItemId: res.itemId, // 今回の結果を「確定結果」として次回へ引き継ぐ
                     score: state.score + point - ticketCost,
                     usedNyanko: state.usedNyanko + (ticketType === "nyanko" ? 1 : 0),
                     usedFukubiki: state.usedFukubiki + (ticketType === "fukubiki" ? 1 : 0),
@@ -182,15 +197,15 @@ function runGachaSearch(Nodes, initialLastIds, limits, gachaIds, customWeights =
                     path: state.path.concat({ 
                         gachaId: gId,
                         gachaName: gachaMaster[gId]?.name || gId,
-                        item: getItemName(itemId), 
-                        itemId: itemId,
+                        item: getItemName(res.itemId), 
+                        itemId: res.itemId,
                         isReroll: res.isReroll,
-                        addr: Nodes[state.nodeIdx][gId]?.address || '?', 
-                        targetCell: { addr: res.cellAddr, gachaId: gId }
+                        addr: res.addr,
+                        nextAddr: getSimAddress(state.nodeIdx + res.consumed)
                     })
                 };
 
-                const key = `${nextState.nodeIdx}_${JSON.stringify(nextState.lastIds)}_${nextState.usedNyanko}_${nextState.usedFukubiki}_${nextState.usedFukubikiG}`;
+                const key = `${nextState.nodeIdx}_${nextState.lastItemId}_${nextState.usedNyanko}_${nextState.usedFukubiki}_${nextState.usedFukubikiG}`;
                 const existing = dp[t + 1].get(key);
                 if (!existing || existing.score < nextState.score) {
                     dp[t + 1].set(key, nextState);
@@ -199,13 +214,23 @@ function runGachaSearch(Nodes, initialLastIds, limits, gachaIds, customWeights =
         }
     }
     
-    const best = findBestBeamSearchResult(dp, maxTotal, (s) => s.score);
-    if (best) {
-        best.counts = { DARK_NEKOME: 0, TREASURE_RADAR: 0, VITAN_C: 0, BLUE_ORBS: 0 };
-        best.path.forEach(p => {
+    let bestOverall = null;
+    let bestScore = -Infinity;
+    for (let t = maxTotal; t >= 0; t--) {
+        for (const state of dp[t].values()) {
+            if (state.score > bestScore) {
+                bestScore = state.score;
+                bestOverall = state;
+            }
+        }
+    }
+
+    if (bestOverall) {
+        bestOverall.counts = { DARK_NEKOME: 0, TREASURE_RADAR: 0, VITAN_C: 0, BLUE_ORBS: 0 };
+        bestOverall.path.forEach(p => {
             const group = getItemGroup(p.itemId);
-            if (best.counts[group] !== undefined) best.counts[group]++;
+            if (bestOverall.counts[group] !== undefined) bestOverall.counts[group]++;
         });
     }
-    return best;
+    return bestOverall;
 }
