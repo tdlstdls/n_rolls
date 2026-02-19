@@ -5,6 +5,7 @@
 const TARGET_GACHA_IDS = ["0", "64", "62", "63", "65"];
 let displayIds = ["64", "62", "63"]; 
 let displayRollCount = 100; // 初期表示を100行に変更
+let isFourColumnMode = false; // 4列表示モードの状態
 
 // シミュレーション用のグローバルデータ
 window.viewData = {
@@ -20,6 +21,9 @@ window.viewData = {
  * カラム切り替え用グローバル関数
  */
 window.toggleGacha = function(currentId) {
+    // 4列表示モードかつ福引G/猫目の場合は切り替えを無効化
+    if (isFourColumnMode && (currentId === "63" || currentId === "65")) return;
+
     const toggleMap = { "64": "0", "0": "64", "63": "65", "65": "63" };
     const targetId = toggleMap[currentId];
     if (targetId) {
@@ -30,6 +34,36 @@ window.toggleGacha = function(currentId) {
         }
     }
 };
+
+/**
+ * 4列表示モードの更新
+ */
+function updateFourColumnMode() {
+    const btn = document.getElementById('toggle-4col-btn');
+    if (!btn) return;
+
+    if (isFourColumnMode) {
+        btn.textContent = '4列表示ON';
+        btn.style.backgroundColor = '#28a745';
+        
+        // 4列表示構成に強制変更: [0or64, 62, 63, 65]
+        const firstId = displayIds.includes("0") ? "0" : "64";
+        displayIds = [firstId, "62", "63", "65"];
+    } else {
+        btn.textContent = '4列表示';
+        btn.style.backgroundColor = '#6c757d';
+        
+        // 3列に戻す (65を除去し、なければ63を維持)
+        displayIds = displayIds.filter(id => id !== "65");
+        if (!displayIds.includes("63")) {
+            // もし猫目(65)だけが表示されていた場合は福引G(63)に差し替える
+            const idx = displayIds.indexOf("65");
+            if (idx !== -1) displayIds[idx] = "63";
+            else if (displayIds.length < 3) displayIds.push("63");
+        }
+    }
+    generateTable();
+}
 
 /**
  * シード値を更新してテーブルを再描画する
@@ -54,6 +88,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const seedInput = document.getElementById('seed');
     if (typeof UrlManager !== 'undefined') UrlManager.init(seedInput);
     
+    // ヘッダーの入力グループに4列表示ボタンを追加
+    const inputGroup = document.querySelector('.input-group');
+    if (inputGroup) {
+        const modeBtn = document.createElement('button');
+        modeBtn.id = 'toggle-4col-btn';
+        modeBtn.textContent = '4列表示';
+        modeBtn.style.backgroundColor = '#6c757d';
+        modeBtn.style.marginLeft = '5px';
+        modeBtn.onclick = () => {
+            isFourColumnMode = !isFourColumnMode;
+            updateFourColumnMode();
+        };
+        inputGroup.appendChild(modeBtn);
+    }
+
     // 下部コントロールエリアへのボタン追加
     const bottomControls = document.getElementById('bottom-controls');
     if (bottomControls) {
@@ -131,9 +180,11 @@ function generateTable() {
         }
         displayIds.forEach(id => {
             const isClickable = ["0", "64", "63", "65"].includes(id);
-            const clickAttr = isClickable ? `onclick="toggleGacha('${id}')" title="クリックで切り替え"` : "";
-            const extraClass = isClickable ? "clickable-header" : "";
-            const indicator = isClickable ? '<span class="fill-down-icon">▼</span>' : "";
+            // 4列表示モード中は63/65のクリックイベントを抑制するスタイルにする
+            const canClickNow = isClickable && !(isFourColumnMode && (id === "63" || id === "65"));
+            const clickAttr = canClickNow ? `onclick="toggleGacha('${id}')" title="クリックで切り替え"` : "";
+            const extraClass = canClickNow ? "clickable-header" : "";
+            const indicator = canClickNow ? '<span class="fill-down-icon">▼</span>' : "";
             html += `<th class="col-gacha ${trackClass} ${extraClass}" ${clickAttr}>${gachaMaster[id].name}${indicator}</th>`;
         });
     }

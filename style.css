@@ -123,11 +123,26 @@ th, td {
 .clickable-header {
     cursor: pointer;
     position: relative;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
 }
 
-.clickable-header:hover {
-    background-color: rgba(0,0,0,0.05) !important;
+/* PC（マウスあり）のみホバー時にアイコンを表示 */
+@media (hover: hover) {
+    .clickable-header:hover::before {
+        content: "🔄";
+        margin-right: 4px;
+        font-size: 0.8rem;
+        vertical-align: middle;
+    }
+}
+
+/* モバイル・PC共通：クリック/タップしている瞬間だけアイコンを表示 */
+/* これによりタップ後は確実にアイコンが消えます */
+.clickable-header:active::before {
+    content: "🔄";
+    margin-right: 4px;
+    font-size: 0.8rem;
+    vertical-align: middle;
 }
 
 .fill-down-icon {
@@ -144,9 +159,9 @@ th, td {
 
 /* レアリティ背景 */
 .rarity-0 { background-color: var(--rarity-0); }
-.rarity-1 { background-color: var(--rarity-1); border-bottom: 2px solid #81c784; }
-.rarity-2 { background-color: var(--rarity-2); border-bottom: 2px solid #ffd54f; }
-.rarity-3 { background-color: var(--rarity-3); border-bottom: 2px solid #64b5f6; }
+.rarity-1 { background-color: var(--rarity-1); }
+.rarity-2 { background-color: var(--rarity-2); }
+.rarity-3 { background-color: var(--rarity-3); }
 .rarity-4 { background-color: var(--rarity-4); border-bottom: 2px solid #ba68c8; }
 
 /* シミュレーションハイライト（背景色のみに変更） */
