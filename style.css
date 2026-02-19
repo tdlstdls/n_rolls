@@ -1,0 +1,179 @@
+﻿/* style.css */
+:root {
+    --track-a-color: #e3f2fd;
+    --track-b-color: #fce4ec;
+    --header-bg: #ffffff; /* 白背景に変更 */
+    --header-text: #333333; /* 黒文字に変更 */
+    --border-color: #ddd;
+    
+    /* レアリティ別カラー */
+    --rarity-0: #ffffff;
+    --rarity-1: #ffffff;
+    --rarity-2: #fff9c4;
+    --rarity-3: #bbdefb;
+    --rarity-4: #f3e5f5;
+}
+
+body {
+    font-family: -apple-system, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f9fa;
+    color: #333;
+    line-height: 1.4;
+}
+
+header {
+    background-color: var(--header-bg);
+    color: var(--header-text);
+    padding: 10px 20px;
+    text-align: left; /* 左揃えに変更 */
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid #ddd; /* 黒背景の代わりに細い下線 */
+}
+
+h1 {
+    margin: 0 0 5px 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+/* 入力欄とボタン群を統合するグループ */
+.input-group {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap; /* 改行可能にする */
+    font-size: 0.9rem;
+}
+
+input[type="number"] {
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 100px;
+    font-size: 16px;
+}
+
+button {
+    padding: 8px 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.85rem;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+main {
+    padding: 10px;
+    overflow-x: auto;
+}
+
+#rolls-table-container {
+    margin-top: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: white;
+    table-layout: fixed;
+    min-width: 800px; 
+}
+
+th, td {
+    border: 1px solid var(--border-color);
+    padding: 6px 2px;
+    text-align: center;
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sticky-header {
+    position: sticky;
+    background: white;
+    z-index: 10;
+}
+
+.track-header {
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.track-a { background-color: var(--track-a-color); }
+.track-b { background-color: var(--track-b-color); }
+
+.gacha-title-row th {
+    background-color: #f8f9fa;
+    font-size: 0.7rem;
+    color: #666;
+}
+
+.clickable-header {
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.clickable-header:hover {
+    background-color: rgba(0,0,0,0.05) !important;
+}
+
+.fill-down-icon {
+    display: inline-block;
+    margin-left: 4px;
+    font-size: 0.6rem;
+    color: #000;
+    opacity: 0.2;
+    vertical-align: middle;
+}
+
+.col-num { width: 45px; background-color: #eee; font-weight: bold; }
+.col-seed { width: 80px; }
+
+/* レアリティ背景 */
+.rarity-0 { background-color: var(--rarity-0); }
+.rarity-1 { background-color: var(--rarity-1); border-bottom: 2px solid #81c784; }
+.rarity-2 { background-color: var(--rarity-2); border-bottom: 2px solid #ffd54f; }
+.rarity-3 { background-color: var(--rarity-3); border-bottom: 2px solid #64b5f6; }
+.rarity-4 { background-color: var(--rarity-4); border-bottom: 2px solid #ba68c8; }
+
+/* シミュレーションハイライト（背景色のみに変更） */
+.sim-highlighted {
+    background-color: #c8e6c9 !important; /* 少し濃い目の緑で強調 */
+}
+
+.is-rerolled {
+    color: #d32f2f;
+    font-weight: bold;
+}
+.is-rerolled::after {
+    content: "®";
+    font-size: 0.6rem;
+    vertical-align: super;
+    margin-left: 1px;
+}
+
+footer {
+    padding: 20px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.loading {
+    text-align: center;
+    padding: 20px;
+    font-style: italic;
+}
