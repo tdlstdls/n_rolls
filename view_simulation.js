@@ -1,6 +1,6 @@
 ﻿/**
  * view_simulation.js
- * 担当: ルート検索UI（トグルボタンの動的表示制御版）
+ * 担当: ルート検索UI・詳細カスタム設定（チケット別コスト・表示制御・LocalStorage対応版）
  */
 
 const STORAGE_KEY = 'nrolls_custom_weights_v2';
@@ -52,38 +52,24 @@ function initializeSimulationView() {
     const extraControls = document.createElement('div');
     extraControls.style.display = 'flex'; extraControls.style.alignItems = 'center';
     extraControls.style.flexWrap = 'wrap'; extraControls.style.gap = '10px';
-    
-    // レイアウト: [ルート検索] -> [テキスト表示トグル(初期非表示)] -> [条件(所持数)] -> [スコア設定]
     extraControls.innerHTML = `
-        <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; margin-left: 5px;">ルート検索</button>
-        <button id="toggleSimTextBtn" style="display: none; background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; margin-left: 0px;">テキスト表示OFF</button>
-        
-        <div id="ticket-display-wrapper" style="display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; margin-left: 5px; user-select: none;" title="クリックで編集">
-            <span style="font-size: 0.65rem; color: #888; line-height: 1; margin-bottom: 2px;">条件(所持数):</span>
-            <div id="ticket-summary-container" style="padding: 0; font-size: 0.85rem; color: #007bff; text-decoration: underline; line-height: 1.2; display: inline; white-space: normal; background: transparent; border: none; box-shadow: none;">
-                にゃんチケ:100、福引:100、福引G:100
-            </div>
+        <div style="display: flex; align-items: center; gap: 5px; margin-left: 10px; border-left: 1px solid #eee; padding-left: 10px;">
+            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">にゃんこ:</label>
+            <input type="number" id="simTicketNyanko" value="100" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
-
-        <div id="ticket-inputs-area" style="display: none; align-items: center; flex-wrap: wrap; gap: 8px; border: 1px solid #eee; padding: 5px; border-radius: 4px; margin-left: 10px; background: #fff;">
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold; color: #555;">にゃんチケ:</label>
-                <input type="number" id="simTicketNyanko" value="100" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold; color: #555;">福引:</label>
-                <input type="number" id="simTicketFukubiki" value="100" style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold; color: #555;">福引G:</label>
-                <input type="number" id="simTicketFukubikiG" value="100" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
-            </div>
-            <button id="updateTicketBtn" style="background-color: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold; margin-left: 5px;">更新</button>
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">福引:</label>
+            <input type="number" id="simTicketFukubiki" value="100" style="width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
-
-        <div id="custom-display-wrapper" style="display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; margin-left: 10px; user-select: none;">
-            <span style="font-size: 0.65rem; color: #888; line-height: 1; margin-bottom: 2px;">スコア設定:</span>
-            <span id="toggleCustomBtn" style="color: #007bff; text-decoration: underline; font-size: 0.85rem; line-height: 1.2;">カスタム</span>
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <label style="font-size: 0.8rem; font-weight: bold; color: #555;">福引G:</label>
+            <input type="number" id="simTicketFukubikiG" value="100" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <div style="display: flex; gap: 5px; margin-left: 5px;">
+            <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">ルート検索</button>
+            <button id="copySimResultBtn" style="background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">コピー</button>
+            <button id="toggleHighlightBtn" style="background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">ハイライト: ON</button>
+            <button id="toggleCustomBtn" style="background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">カスタム</button>
         </div>
     `;
 
@@ -111,6 +97,24 @@ function initializeSimulationView() {
     let html = `<div style="font-size: 0.75rem; font-weight: bold; margin-bottom: 8px; color: #666;">スコア重みづけ設定</div>`;
     html += `<div style="display: flex; flex-direction: column; gap: 5px;">`;
     groupDefs.forEach(g => { html += createGroupRowHtml(g.label, g.key, g.def); });
+
+    html += `<div style="margin-top: 8px; border-top: 1px solid #eee; padding-top: 8px;">
+                <div style="font-size: 0.7rem; font-weight: bold; color: #888; margin-bottom: 5px;">チケット消費コスト (温存したいものを大きく減点)</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 3px;">
+                        <label style="font-size: 0.65rem;">にゃんこ:</label>
+                        <input type="number" id="cost-nyanko" value="-1000" style="width: 70px; padding:2px; font-size:0.7rem; border:1px solid #ccc; border-radius:3px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 3px;">
+                        <label style="font-size: 0.65rem;">福引G:</label>
+                        <input type="number" id="cost-fukubikiG" value="-100" style="width: 70px; padding:2px; font-size:0.7rem; border:1px solid #ccc; border-radius:3px;">
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 3px;">
+                        <label style="font-size: 0.65rem;">福引:</label>
+                        <input type="number" id="cost-fukubiki" value="-1" style="width: 70px; padding:2px; font-size:0.7rem; border:1px solid #ccc; border-radius:3px;">
+                    </div>
+                </div>
+            </div>`;
     html += `</div>`;
     
     customPanel.innerHTML = html;
@@ -126,58 +130,20 @@ function initializeSimulationView() {
     simContainer.appendChild(resultDisplay);
 
     document.getElementById('runSimBtn').onclick = runSimulation;
-    document.getElementById('toggleSimTextBtn').onclick = toggleSimTextMode;
-    document.getElementById('custom-display-wrapper').onclick = toggleCustomMode;
-
-    const displayWrapper = document.getElementById('ticket-display-wrapper');
-    const summaryContainer = document.getElementById('ticket-summary-container');
-    const inputsArea = document.getElementById('ticket-inputs-area');
-    const updateBtn = document.getElementById('updateTicketBtn');
-
-    const updateTicketSummary = () => {
-        const nyanko = document.getElementById('simTicketNyanko').value;
-        const fukubiki = document.getElementById('simTicketFukubiki').value;
-        const fukubikiG = document.getElementById('simTicketFukubikiG').value;
-        summaryContainer.textContent = `にゃんチケ:${nyanko}、福引:${fukubiki}、福引G:${fukubikiG}`;
-    };
-
-    displayWrapper.onclick = () => {
-        displayWrapper.style.display = 'none';
-        inputsArea.style.display = 'flex';
-    };
-
-    updateBtn.onclick = () => {
-        inputsArea.style.display = 'none';
-        displayWrapper.style.display = 'flex';
-    };
-    
-    displayWrapper.onmouseover = () => { 
-        summaryContainer.style.color = '#0056b3';
-    };
-    displayWrapper.onmouseout = () => { 
-        summaryContainer.style.color = '#007bff';
-    };
-
-    ['simTicketNyanko', 'simTicketFukubiki', 'simTicketFukubikiG'].forEach(id => {
-        document.getElementById(id).addEventListener('input', updateTicketSummary);
-    });
+    document.getElementById('copySimResultBtn').onclick = copySimResult;
+    document.getElementById('toggleHighlightBtn').onclick = toggleHighlightMode;
+    document.getElementById('toggleCustomBtn').onclick = toggleCustomMode;
 
     customPanel.querySelectorAll('input').forEach(input => {
         input.addEventListener('change', saveSettingsToStorage);
     });
 
     loadSettingsFromStorage();
+    updateHighlightButtonText();
     updateCustomButtonText();
-    updateSimTextButtonState();
-    updateTicketSummary();
     injectSimStyles();
 
-    if (window.viewData.lastSimResult) {
-        // すでに結果がある場合はボタンを表示
-        const btn = document.getElementById('toggleSimTextBtn');
-        if (btn) btn.style.display = 'inline-block';
-        displaySimulationResult(window.viewData.lastSimResult);
-    }
+    if (window.viewData.lastSimResult) displaySimulationResult(window.viewData.lastSimResult);
 }
 
 function createGroupRowHtml(label, key, defaultValue) {
@@ -186,6 +152,7 @@ function createGroupRowHtml(label, key, defaultValue) {
     
     let itemsHtml = `<div id="items-panel-${key}" style="display:none; margin-left: 20px; padding: 5px; border-left: 2px solid #eee; background: #fafafa; margin-bottom: 5px;">`;
     items.forEach(id => {
+        // デフォルト個別スコアがあれば表示
         const defItemScore = DEFAULT_ITEM_SCORES.items[id] || "";
         itemsHtml += `
             <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 2px;">
@@ -221,6 +188,11 @@ window.toggleItemPanel = function(key) {
 function saveSettingsToStorage() {
     const settings = {
         isCustomMode: window.isCustomMode,
+        costs: {
+            nyanko: parseFloat(document.getElementById('cost-nyanko').value),
+            fukubikiG: parseFloat(document.getElementById('cost-fukubikiG').value),
+            fukubiki: parseFloat(document.getElementById('cost-fukubiki').value)
+        },
         groups: {},
         items: {}
     };
@@ -239,6 +211,11 @@ function loadSettingsFromStorage() {
     try {
         const settings = JSON.parse(saved);
         window.isCustomMode = !!settings.isCustomMode;
+        if (settings.costs) {
+            if (settings.costs.nyanko !== undefined) document.getElementById('cost-nyanko').value = settings.costs.nyanko;
+            if (settings.costs.fukubikiG !== undefined) document.getElementById('cost-fukubikiG').value = settings.costs.fukubikiG;
+            if (settings.costs.fukubiki !== undefined) document.getElementById('cost-fukubiki').value = settings.costs.fukubiki;
+        }
         if (settings.groups) {
             document.querySelectorAll('.custom-group-weight-input').forEach(input => {
                 if (settings.groups[input.dataset.key] !== undefined) input.value = settings.groups[input.dataset.key];
@@ -251,7 +228,6 @@ function loadSettingsFromStorage() {
         }
         const panel = document.getElementById('custom-weight-panel');
         if (panel) panel.style.display = window.isCustomMode ? 'block' : 'none';
-        updateCustomButtonText();
     } catch (e) { console.error("Load failed", e); }
 }
 
@@ -267,37 +243,12 @@ function updateCustomButtonText() {
     const btn = document.getElementById('toggleCustomBtn');
     if (!btn) return;
     btn.textContent = window.isCustomMode ? 'カスタムON' : 'カスタム';
-}
-
-/**
- * テキスト表示モードの切り替え
- */
-function toggleSimTextMode() {
-    window.viewData.showSimText = !window.viewData.showSimText;
-    updateSimTextButtonState();
-    
-    const display = document.getElementById('sim-result-text');
-    if (display) {
-        display.style.display = window.viewData.showSimText ? 'block' : 'none';
-    }
-}
-
-/**
- * テキスト表示ボタンのスタイル更新
- */
-function updateSimTextButtonState() {
-    const btn = document.getElementById('toggleSimTextBtn');
-    if (!btn) return;
-    const isActive = !!window.viewData.showSimText;
-    btn.textContent = isActive ? 'テキスト表示ON' : 'テキスト表示OFF';
-    btn.style.backgroundColor = isActive ? '#28a745' : '#6c757d';
+    btn.style.backgroundColor = window.isCustomMode ? '#28a745' : '#6c757d';
 }
 
 function runSimulation() {
-    const seedInput = document.getElementById('seed');
-    const initialSeed = parseInt(seedInput.value, 10);
-    if (isNaN(initialSeed)) {
-        alert("有効なシード値を入力してください。");
+    if (!viewData.calculatedData || !viewData.calculatedData.Nodes) {
+        alert("データが計算されていません。先に「更新」ボタンを押してください。");
         return;
     }
 
@@ -309,9 +260,14 @@ function runSimulation() {
 
     let weights = null;
     if (window.isCustomMode) {
+        // UI上のマイナス値を正のコスト（減点値）に変換して渡す
         weights = { 
             groups: {}, items: {}, 
-            costs: { nyanko: 1000, fukubikiG: 100, fukubiki: 1 } 
+            costs: {
+                nyanko: Math.abs(parseFloat(document.getElementById('cost-nyanko').value)) || 0,
+                fukubikiG: Math.abs(parseFloat(document.getElementById('cost-fukubikiG').value)) || 0,
+                fukubiki: Math.abs(parseFloat(document.getElementById('cost-fukubiki').value)) || 0
+            }
         };
         document.querySelectorAll('.custom-group-weight-input').forEach(input => {
             weights.groups[input.dataset.key] = parseFloat(input.value) || 0;
@@ -321,27 +277,30 @@ function runSimulation() {
         });
     }
 
+    const { Nodes } = viewData.calculatedData;
     const activeGachaIds = viewData.gachaIds.filter(id => {
         if (id === "0" && !displayIds.includes("0") && displayIds.includes("64")) return false;
         if (id === "64" && !displayIds.includes("64") && displayIds.includes("0")) return false;
         return true;
     });
     
-    const result = runGachaSearch(initialSeed, 'none', limits, activeGachaIds, weights);
+    const initialLastIds = {};
+    activeGachaIds.forEach(id => { initialLastIds[id] = 'none'; });
+
+    const result = runGachaSearch(Nodes, initialLastIds, limits, activeGachaIds, weights);
     window.viewData.lastSimResult = result;
 
-    if (result) {
+    if (viewData) {
         viewData.highlightedRoute = new Map();
-        result.path.forEach(p => {
-            const key = `${p.addr}_${p.gachaId}`;
-            viewData.highlightedRoute.set(key, true);
-        });
-        viewData.showSimHighlight = true;
-        if (typeof generateTable === 'function') generateTable();
-        
-        // 検索実行後にボタンを表示
-        const toggleBtn = document.getElementById('toggleSimTextBtn');
-        if (toggleBtn) toggleBtn.style.display = 'inline-block';
+        if (result) {
+            result.path.forEach(p => {
+                const key = `${p.targetCell.addr}_${p.targetCell.gachaId}`;
+                viewData.highlightedRoute.set(key, true);
+            });
+            viewData.showSimHighlight = true;
+        }
+        updateHighlightButtonText();
+        if (typeof runSimulationAndDisplay === 'function') runSimulationAndDisplay();
     }
     displaySimulationResult(result);
 }
@@ -349,8 +308,7 @@ function runSimulation() {
 function displaySimulationResult(result) {
     const display = document.getElementById('sim-result-text');
     if (!display) return;
-    
-    display.style.display = window.viewData.showSimText ? 'block' : 'none';
+    display.style.display = 'block';
     display.innerHTML = "";
 
     if (!result) {
@@ -363,10 +321,10 @@ function displaySimulationResult(result) {
         fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #28a745',
         paddingBottom: '4px', fontSize: '0.95rem', color: '#155724'
     });
-    header.textContent = `【ルート検索結果】(闇猫目:${result.counts.DARK_NEKOME} / トレレ:${result.counts.TREASURE_RADAR})`;
+    header.textContent = `【ルート検索結果】(闇猫目:${result.counts.DARK_NEKOME} / トレレ:${result.counts.TREASURE_RADAR} / ビタンC:${result.counts.VITAN_C} / 青玉:${result.counts.BLUE_ORBS})`;
     display.appendChild(header);
 
-    let plainText = `【ルート検索シミュレーション結果】\n(闇猫目:${result.counts.DARK_NEKOME}, トレレ:${result.counts.TREASURE_RADAR})\n\n`;
+    let plainText = `【ルート検索シミュレーション結果】\n(闇猫目:${result.counts.DARK_NEKOME}, トレレ:${result.counts.TREASURE_RADAR}, ビタンC:${result.counts.VITAN_C}, 青玉:${result.counts.BLUE_ORBS})\n\n`;
     
     let i = 0;
     while (i < result.path.length) {
@@ -374,18 +332,18 @@ function displaySimulationResult(result) {
         const currentGachaId = result.path[i].gachaId;
         const currentGachaName = result.path[i].gachaName;
         const itemsHtml = [], itemsPlain = [];
-        while (j < result.path.length && result.path[j].gachaName === currentGachaName) {
+        while (j < result.path.length && result.path[j].gachaId === currentGachaId) {
             const step = result.path[j];
             let label = step.isReroll ? " (被り)" : "";
-            itemsHtml.push(getColoredItemHtml(step.item) + label + `<small style="color:#888; margin-left:2px;">(${step.addr})</small>`);
-            itemsPlain.push(`${step.item}${label}(${step.addr})`);
+            itemsHtml.push(getColoredItemHtml(step.item) + label);
+            itemsPlain.push(step.item + label);
             j++;
         }
         const count = j - i;
-        const startAddr = result.path[i].addr;
-        const rowHeader = `<span style="color: #d9534f; font-weight: bold;">[${currentGachaName}]</span> ${count}回 (${startAddr}～):<br>`;
+        const addr = result.path[i].addr;
+        const rowHeader = `<span style="color: #d9534f; font-weight: bold;">[${currentGachaName}]</span> ${count}回 (${addr}～):<br>`;
         const html = "　=> " + itemsHtml.join('、');
-        const plain = `[${currentGachaName}] ${count}回 (${startAddr}～) => ` + itemsPlain.join('、');
+        const plain = `[${currentGachaName}] ${count}回 (${addr}～) => ` + itemsPlain.join('、');
         display.appendChild(createResultRow(rowHeader + html));
         plainText += plain + "\n";
         i = j;
@@ -419,6 +377,30 @@ function getColoredItemHtml(name) {
     if (item.rarity === 3) return `<span style="color: #d9534f; font-weight: bold;">${name}</span>`;
     if (item.rarity === 2) return `<span style="color: #c0a000; font-weight: bold;">${name}</span>`;
     return name;
+}
+
+function toggleHighlightMode() {
+    viewData.showSimHighlight = !viewData.showSimHighlight;
+    updateHighlightButtonText();
+    if (typeof runSimulationAndDisplay === 'function') runSimulationAndDisplay();
+}
+
+function updateHighlightButtonText() {
+    const btn = document.getElementById('toggleHighlightBtn');
+    if (!btn) return;
+    btn.textContent = viewData.showSimHighlight ? 'ハイライト: ON' : 'ハイライト: OFF';
+    btn.style.backgroundColor = viewData.showSimHighlight ? '#007bff' : '#6c757d';
+}
+
+function copySimResult() {
+    if (!window.lastSimText) return;
+    navigator.clipboard.writeText(window.lastSimText).then(() => {
+        const btn = document.getElementById('copySimResultBtn');
+        const old = btn.textContent;
+        btn.textContent = '完了';
+        btn.style.backgroundColor = '#28a745';
+        setTimeout(() => { btn.textContent = old; btn.style.backgroundColor = '#6c757d'; }, 1000);
+    });
 }
 
 function injectSimStyles() {

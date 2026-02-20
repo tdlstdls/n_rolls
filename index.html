@@ -28,26 +28,20 @@
     <div id="app">
         <header>
             <h1>N_Rolls</h1>
-            <div class="input-group" style="align-items: flex-end; gap: 15px;">
-                <div id="seed-display-wrapper" style="display: flex; flex-direction: column; align-items: center; cursor: pointer; user-select: none; margin-left: 10px;" title="クリックで編集">
-                    <span style="font-size: 0.6rem; color: #888; line-height: 1; margin-bottom: 2px; white-space: nowrap;">SEED (変更):</span>
-                    <div id="seed-summary-text" style="font-size: 1rem; color: #007bff; text-decoration: underline; line-height: 1.2; font-weight: bold;">12345</div>
-                </div>
-
-                <div id="seed-edit-controls" style="display: none; align-items: center; gap: 8px;">
-                    <div style="display: flex; flex-direction: column; align-items: flex-start;">
-                        <label for="seed" style="font-size: 0.65rem; color: #555; line-height: 1; margin-bottom: 2px;">SEED：</label>
-                        <input type="number" id="seed" value="12345" placeholder="シード値を入力" style="width: 120px; padding: 4px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;">
-                    </div>
-                    <button id="update-seed-ui-btn" style="background-color: #28a745; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold; align-self: flex-end;">更新</button>
-                </div>
+            <div class="input-group">
+                <label for="seed">Seed:</label>
+                <input type="number" id="seed" value="12345" placeholder="シード値を入力">
+                <button id="generate-btn">更新</button>
             </div>
         </header>
 
         <main id="result" style="display: none;">
             <div id="sim-ui-container"></div>
+            
             <div id="rolls-table-container"></div>
-            <div id="bottom-controls" style="display: flex; gap: 10px; margin: 20px 10px; align-items: center; justify-content: flex-start;"></div>
+
+            <div id="bottom-controls" style="display: flex; gap: 10px; margin: 20px 10px; align-items: center; justify-content: flex-start;">
+                </div>
         </main>
 
         <footer id="debug-info">
