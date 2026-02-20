@@ -1,67 +1,47 @@
-﻿/**
+/**
  * url_manager.js
- * URLクエリパラメータと各設定値の同期を管理
+ * URLクエリパラメータとシード値の同期を管理
  */
 
 const UrlManager = {
     /**
-     * URLのクエリパラメータから指定したキーの値を取得する
-     */
-    getParam(key) {
-        const params = new URLSearchParams(window.location.search);
-        return params.get(key);
-    },
-
-    /**
      * URLのクエリパラメータからseedを取得する
+     * @returns {number|null} シード値。存在しない場合はnull
      */
     getSeedFromUrl() {
-        const seed = this.getParam('seed');
+        const params = new URLSearchParams(window.location.search);
+        const seed = params.get('seed');
         return seed ? parseInt(seed, 10) : null;
     },
 
     /**
-     * URLのクエリパラメータを更新する
-     * @param {string} key 
-     * @param {string|number} value 
+     * URLのクエリパラメータにseedをセットする（履歴に残さないreplaceStateを使用）
+     * @param {number} seed 
      */
-    updateUrlParam(key, value) {
+    updateUrl(seed) {
         const url = new URL(window.location.href);
-        if (value === null || value === undefined || value === '' || value === 0 || value === "0") {
-            // 進捗が0の場合はURLをスッキリさせるために削除
-            if (key === 'p' && (value === 0 || value === "0")) {
-                url.searchParams.delete(key);
-            } else if (value === null || value === undefined || value === '') {
-                url.searchParams.delete(key);
-            } else {
-                url.searchParams.set(key, value);
-            }
-        } else {
-            url.searchParams.set(key, value);
-        }
+        url.searchParams.set('seed', seed);
+        // ページをリロードせずにURLを書き換える
         window.history.replaceState(null, '', url.toString());
     },
 
     /**
-     * URLのクエリパラメータにseedをセットする
-     */
-    updateUrl(seed) {
-        this.updateUrlParam('seed', seed);
-    },
-
-    /**
-     * 初期化処理
+     * 初期化処理: URLにシードがあれば入力欄に反映し、なければ現在の値をURLに反映する
+     * @param {HTMLInputElement} seedInput 
      */
     init(seedInput) {
         if (!seedInput) return;
 
         const urlSeed = this.getSeedFromUrl();
         if (urlSeed !== null && !isNaN(urlSeed)) {
+            // URLにシードがある場合は入力欄を更新
             seedInput.value = urlSeed;
         } else {
+            // URLにシードがない場合は現在の入力値をURLに反映
             this.updateUrl(seedInput.value);
         }
 
+        // 入力欄が変更されたらURLを更新するイベント（リアルタイム同期）
         seedInput.addEventListener('input', () => {
             const val = parseInt(seedInput.value, 10);
             if (!isNaN(val)) {
