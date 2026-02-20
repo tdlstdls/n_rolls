@@ -1,11 +1,11 @@
 ﻿/**
- * main.js (N_Rolls デザイン・構造調整版)
+ * main.js (SEED UI統合・反映ボタン廃止・ヘッダー切替ボタン化版)
  */
 
 const TARGET_GACHA_IDS = ["0", "64", "62", "63", "65"];
 let displayIds = ["64", "62", "63"]; 
-let displayRollCount = 100; // 初期表示を100行に変更
-let isFourColumnMode = false; // 4列表示モードの状態
+let displayRollCount = 100; 
+let isFourColumnMode = false; 
 
 // シミュレーション用のグローバルデータ
 window.viewData = {
@@ -14,14 +14,24 @@ window.viewData = {
     initialLastRollId: "none",
     highlightedRoute: new Map(),
     showSimHighlight: true,
-    lastSimResult: null // 最適ルートの結果を保持する用
+    lastSimResult: null 
 };
+
+/**
+ * SEED要約表示の数値を最新の状態に更新する
+ */
+function updateSeedSummary() {
+    const seedInput = document.getElementById('seed');
+    const seedSummaryText = document.getElementById('seed-summary-text');
+    if (seedInput && seedSummaryText) {
+        seedSummaryText.textContent = seedInput.value;
+    }
+}
 
 /**
  * カラム切り替え用グローバル関数
  */
 window.toggleGacha = function(currentId) {
-    // 4列表示モードかつ福引G/猫目の場合は切り替えを無効化
     if (isFourColumnMode && (currentId === "63" || currentId === "65")) return;
 
     const toggleMap = { "64": "0", "0": "64", "63": "65", "65": "63" };
@@ -36,43 +46,33 @@ window.toggleGacha = function(currentId) {
 };
 
 /**
- * 4列表示モードの更新
+ * 4列表示モードの切り替え
  */
-function updateFourColumnMode() {
-    const btn = document.getElementById('toggle-4col-btn');
-    if (!btn) return;
-
+window.toggleFourColumnMode = function() {
+    isFourColumnMode = !isFourColumnMode;
+    
     if (isFourColumnMode) {
-        btn.textContent = '4列表示ON';
-        btn.style.backgroundColor = '#28a745';
-        
-        // 4列表示構成に強制変更: [0or64, 62, 63, 65]
         const firstId = displayIds.includes("0") ? "0" : "64";
         displayIds = [firstId, "62", "63", "65"];
     } else {
-        btn.textContent = '4列表示';
-        btn.style.backgroundColor = '#6c757d';
-        
-        // 3列に戻す (65を除去し、なければ63を維持)
         displayIds = displayIds.filter(id => id !== "65");
         if (!displayIds.includes("63")) {
-            // もし猫目(65)だけが表示されていた場合は福引G(63)に差し替える
             const idx = displayIds.indexOf("65");
             if (idx !== -1) displayIds[idx] = "63";
             else if (displayIds.length < 3) displayIds.push("63");
         }
     }
     generateTable();
-}
+};
 
 /**
  * シード値を更新してテーブルを再描画する
- * (r_rolls からの移植機能)
  */
 window.updateSeedAndRefresh = function(newSeed) {
     const seedInput = document.getElementById('seed');
     if (seedInput) {
         seedInput.value = newSeed;
+        updateSeedSummary(); 
         if (typeof UrlManager !== 'undefined') {
             UrlManager.updateUrl(newSeed);
         }
@@ -80,33 +80,66 @@ window.updateSeedAndRefresh = function(newSeed) {
     }
 };
 
+/**
+ * 現在のSEED値をシステムに反映し、テーブルを更新する
+ */
+function applyCurrentSeed() {
+    const seedInput = document.getElementById('seed');
+    const seedDisplayWrapper = document.getElementById('seed-display-wrapper');
+    const seedEditControls = document.getElementById('seed-edit-controls');
+
+    updateSeedSummary();
+    if (typeof UrlManager !== 'undefined') UrlManager.updateUrl(seedInput.value);
+    
+    // UIを要約モードに戻す
+    if (seedEditControls) seedEditControls.style.display = 'none';
+    if (seedDisplayWrapper) seedDisplayWrapper.style.display = 'flex';
+    
+    generateTable();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // タイトルの変更
     const h1 = document.querySelector('h1');
     if (h1) h1.textContent = 'N_Rolls';
 
     const seedInput = document.getElementById('seed');
     if (typeof UrlManager !== 'undefined') UrlManager.init(seedInput);
     
-    // ヘッダーの入力グループに4列表示ボタンを追加
-    const inputGroup = document.querySelector('.input-group');
-    if (inputGroup) {
-        const modeBtn = document.createElement('button');
-        modeBtn.id = 'toggle-4col-btn';
-        modeBtn.textContent = '4列表示';
-        modeBtn.style.backgroundColor = '#6c757d';
-        modeBtn.style.marginLeft = '5px';
-        modeBtn.onclick = () => {
-            isFourColumnMode = !isFourColumnMode;
-            updateFourColumnMode();
+    const seedDisplayWrapper = document.getElementById('seed-display-wrapper');
+    const seedEditControls = document.getElementById('seed-edit-controls');
+    const updateSeedUiBtn = document.getElementById('update-seed-ui-btn');
+
+    if (seedDisplayWrapper && seedEditControls && updateSeedUiBtn) {
+        // 表示クリックで編集開始
+        seedDisplayWrapper.onclick = () => {
+            seedDisplayWrapper.style.display = 'none';
+            seedEditControls.style.display = 'flex';
+            seedInput.focus();
+            seedInput.select();
         };
-        inputGroup.appendChild(modeBtn);
+
+        // 更新ボタンクリックで反映して終了
+        updateSeedUiBtn.onclick = () => {
+            applyCurrentSeed();
+        };
+
+        // Enterキーでも反映
+        seedInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                applyCurrentSeed();
+            }
+        });
+
+        seedDisplayWrapper.onmouseover = () => {
+            document.getElementById('seed-summary-text').style.color = '#0056b3';
+        };
+        seedDisplayWrapper.onmouseout = () => {
+            document.getElementById('seed-summary-text').style.color = '#007bff';
+        };
     }
 
-    // 下部コントロールエリアへのボタン追加
     const bottomControls = document.getElementById('bottom-controls');
     if (bottomControls) {
-        // 「+100行追加」ボタンの作成
         const addRowsBtn = document.createElement('button');
         addRowsBtn.id = 'add-rows-btn';
         addRowsBtn.textContent = '+100行追加';
@@ -118,22 +151,12 @@ document.addEventListener('DOMContentLoaded', () => {
         bottomControls.appendChild(addRowsBtn);
     }
 
-    // 確認モードの初期化
     if (typeof ConfirmManager !== 'undefined') ConfirmManager.init(() => generateTable());
 
-    const generateBtn = document.getElementById('generate-btn');
-    if (generateBtn) {
-        generateBtn.addEventListener('click', () => {
-            if (typeof UrlManager !== 'undefined') UrlManager.updateUrl(seedInput.value);
-            generateTable();
-        });
-    }
+    updateSeedSummary(); 
     generateTable();
 });
 
-/**
- * テーブル用アドレス（A1, B25等）のフォーマット
- */
 function formatAddress(idx) {
     if (idx === null || idx === undefined) return '';
     const row = Math.floor(idx / 2) + 1;
@@ -141,9 +164,6 @@ function formatAddress(idx) {
     return `${side}${row}`;
 }
 
-/**
- * テーブル生成メイン関数
- */
 function generateTable() {
     const seedInput = document.getElementById('seed');
     let seed = parseInt(seedInput.value, 10);
@@ -159,18 +179,34 @@ function generateTable() {
 
     let masterHtml = isModeActive ? ConfirmManager.generateMasterInfoHtml(displayIds, gachaMaster, itemMaster) : '';
     
+    // 4列表示ボタン（小型化・スタイル調整）
+    const fourColBtnText = isFourColumnMode ? '4列表示ON' : '4列表示OFF';
+    const fourColBtnColor = isFourColumnMode ? '#28a745' : '#6c757d';
+    const fourColBtnHtml = `
+        <button onclick="toggleFourColumnMode()" style="
+            margin-left: 10px;
+            padding: 2px 5px;
+            font-size: 0.6rem;
+            background-color: ${fourColBtnColor};
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            vertical-align: middle;
+            line-height: 1;
+        ">${fourColBtnText}</button>
+    `;
+
     let html = masterHtml + '<table>';
     const extraCols = isModeActive ? 2 : 0;
     const trackColSpan = displayIds.length + extraCols;
     
-    // ヘッダー1行目
     html += `<tr>
         <th class="col-num" rowspan="2">NO.</th>
-        <th colspan="${trackColSpan}" class="track-header track-a">Track A</th>
+        <th colspan="${trackColSpan}" class="track-header track-a">Track A${fourColBtnHtml}</th>
         <th colspan="${trackColSpan}" class="track-header track-b">Track B</th>
     </tr>`;
 
-    // ヘッダー2行目
     html += `<tr>`;
     for(let i=0; i<2; i++) {
         const trackClass = (i === 0) ? 'track-a' : 'track-b';
@@ -180,11 +216,25 @@ function generateTable() {
         }
         displayIds.forEach(id => {
             const isClickable = ["0", "64", "63", "65"].includes(id);
-            const canClickNow = isClickable && !(isFourColumnMode && (id === "63" || id === "65"));
-            const clickAttr = canClickNow ? `onclick="toggleGacha('${id}')" title="クリックで切り替え"` : "";
-            const extraClass = canClickNow ? "clickable-header" : "";
-            const indicator = canClickNow ? '<span class="fill-down-icon">▼</span>' : "";
-            html += `<th class="col-gacha ${trackClass} ${extraClass}" ${clickAttr}>${gachaMaster[id].name}${indicator}</th>`;
+            const isToggleDisabled = isFourColumnMode && (id === "63" || id === "65");
+            const canClick = isClickable && !isToggleDisabled;
+
+            // ▽から「切替」ボタンに変更
+            const toggleBtnHtml = canClick ? `
+                <button onclick="toggleGacha('${id}')" style="
+                    margin-left: 4px;
+                    padding: 1px 4px;
+                    font-size: 0.55rem;
+                    background-color: #718096;
+                    color: white;
+                    border: none;
+                    border-radius: 2px;
+                    cursor: pointer;
+                    vertical-align: middle;
+                    line-height: 1.2;
+                ">切替</button>` : "";
+
+            html += `<th class="col-gacha ${trackClass}">${gachaMaster[id].name}${toggleBtnHtml}</th>`;
         });
     }
     html += '</tr>';
@@ -211,7 +261,6 @@ function generateTable() {
         TARGET_GACHA_IDS.forEach((gId, idx) => {
             const resA = allResultsA[idx];
             const resB = allResultsB[idx];
-            // シミュレーション用に seedsConsumed を追加保存
             allNodes[currentIndexA][gId] = {
                 address: formatAddress(currentIndexA),
                 itemId: resA.itemId, rarityId: resA.rarity,
@@ -255,24 +304,10 @@ function advanceSeed(seed) {
     return rng.next();
 }
 
-function mapToActualSlot(tempSlot, excludedIndices) {
-    let sortedEx = [...excludedIndices].sort((a, b) => a - b);
-    let finalSlot = tempSlot;
-    for (let ex of sortedEx) {
-        if (finalSlot >= ex) finalSlot++;
-        else break;
-    }
-    return finalSlot;
-}
-
-/**
- * 抽選ロジック: 確認モードに必要な詳細データも生成する
- */
 function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
     const gacha = gachaMaster[gachaId];
     const rng = new Xorshift32(state.currentSeed);
     
-    // 1段階目：レアリティ
     const s1 = rng.next();
     const rRarity = s1 % 10000;
     const targetRarity = determineRarity(s1, gacha.rarityRates);
@@ -280,12 +315,11 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
     let filteredPool = gacha.pool.filter(itemId => itemMaster[itemId].rarity === targetRarity);
     if (filteredPool.length === 0) filteredPool = gacha.pool;
     
-    // 2段階目：スロット
     const s2 = rng.next();
     const totalChars = filteredPool.length;
     const charIndex = s2 % totalChars;
     
-    let lastGeneratedSeed = s2; // キャラ決定に使用された直近のシード
+    let lastGeneratedSeed = s2; 
     const originalItemId = String(filteredPool[charIndex]);
     const originalItem = itemMaster[originalItemId];
     let itemId = originalItemId;
@@ -312,12 +346,11 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
             const currentDivisor = totalChars - excludedIndices.length;
             if (currentDivisor <= 0) break; 
             const sNext = rng.next();
-            lastGeneratedSeed = sNext; // 再抽選が行われた場合はそのシードを「最終シード」とする
+            lastGeneratedSeed = sNext; 
             const tempSlot = sNext % currentDivisor;
             const finalSlot = mapToActualSlot(tempSlot, excludedIndices);
             const nextItemId = String(filteredPool[finalSlot]);
             
-            // 確認モード用に履歴を保存
             rerollHistory.push({
                 seed: sNext,
                 index: tempSlot,
@@ -348,8 +381,7 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
         isConsecutiveRerollTarget: isConsecutiveRerollTarget,
         poolSize: totalChars, 
         seedsConsumed: 2 + (isRerolled ? rerollHistory.length : 0),
-        finalSeed: lastGeneratedSeed, // 移植機能用のプロパティ
-        // 確認モード表示用の追加データ
+        finalSeed: lastGeneratedSeed, 
         gachaName: gacha.name,
         s1: s1,
         rRarity: rRarity,
@@ -380,10 +412,8 @@ function renderCell(result, isModeActive, startIndex, isRowHighlighted = false, 
     
     let extraAttrs = '';
     if (isModeActive && typeof ConfirmManager !== 'undefined') {
-        // 確認モード：詳細アラートを表示
         extraAttrs = ConfirmManager.getCellAttributes(result);
     } else {
-        // 通常モード：クリックでシードを更新して再描画 (r_rolls からの移植機能)
         extraAttrs = `onclick="updateSeedAndRefresh(${result.finalSeed})" title="シードを ${result.finalSeed} に更新して開始"`;
     }
 

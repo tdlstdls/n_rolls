@@ -71,7 +71,6 @@ button:hover {
 
 main {
     padding: 5px;
-    /* 横スクロールを極力発生させない設定 */
     overflow-x: hidden;
 }
 
@@ -84,7 +83,6 @@ table {
     width: 100%;
     border-collapse: collapse;
     background-color: white;
-    /* レイアウトをブラウザに任せて圧縮する */
     table-layout: auto;
     min-width: 0;
 }
@@ -94,13 +92,11 @@ th, td {
     padding: 4px 2px;
     text-align: center;
     font-size: 0.7rem;
-    /* テキストを折り返す設定 */
     white-space: normal;
     word-break: break-all;
     overflow: visible;
 }
 
-/* ヘッダーの固定は不要とのことでstickyを解除 */
 .sticky-header {
     background: white;
 }
@@ -146,8 +142,29 @@ th, td {
 .rarity-3 { background-color: var(--rarity-3); }
 .rarity-4 { background-color: var(--rarity-4); border-bottom: 2px solid #ba68c8; }
 
+/* シミュレーション用追加スタイル */
 .sim-highlighted {
     background-color: #c8e6c9 !important;
+}
+
+#ticket-summary-container {
+    transition: all 0.2s ease;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#ticket-summary-container:hover {
+    background-color: #e9ecef !important;
+    border-color: #adb5bd !important;
+}
+
+#ticket-inputs-area {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .is-rerolled {
@@ -170,4 +187,10 @@ footer {
 .loading {
     text-align: center;
     padding: 20px;
+}
+
+/* カスタムウェイトパネル用 */
+.custom-item-weight-input::-webkit-inner-spin-button, 
+.custom-item-weight-input::-webkit-outer-spin-button { 
+    opacity: 0.5; 
 }
