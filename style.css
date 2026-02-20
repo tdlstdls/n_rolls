@@ -122,7 +122,6 @@ th, td {
     opacity: 0.3;
 }
 
-/* 特定の列の幅を最小限にする */
 .col-num { 
     width: 25px; 
     background-color: #eee; 
@@ -142,9 +141,37 @@ th, td {
 .rarity-3 { background-color: var(--rarity-3); }
 .rarity-4 { background-color: var(--rarity-4); border-bottom: 2px solid #ba68c8; }
 
-/* シミュレーション用追加スタイル */
-.sim-highlighted {
-    background-color: #c8e6c9 !important;
+/* シミュレーション用追加スタイル (テーブルとテキスト共有) */
+.sim-route-remaining {
+    background-color: #00e676 !important; /* 鮮やかな緑 */
+}
+.sim-route-checked {
+    background-color: #c8e6c9 !important; /* 従来の緑 */
+}
+
+/* トースト通知用スタイル */
+.sim-toast {
+    position: fixed;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    text-align: center;
+    max-width: 80%;
+    animation: toast-fade-in 0.3s ease-out;
+}
+
+@keyframes toast-fade-in {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 #ticket-summary-container {
@@ -189,7 +216,6 @@ footer {
     padding: 20px;
 }
 
-/* カスタムウェイトパネル用 */
 .custom-item-weight-input::-webkit-inner-spin-button, 
 .custom-item-weight-input::-webkit-outer-spin-button { 
     opacity: 0.5; 
