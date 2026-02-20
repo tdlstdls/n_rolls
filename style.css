@@ -154,8 +154,22 @@ th, td {
     vertical-align: middle;
 }
 
+<<<<<<< HEAD
 .col-num { width: 45px; background-color: #eee; font-weight: bold; }
 .col-seed { width: 80px; }
+=======
+.col-num { 
+    width: 25px; 
+    background-color: #eee; 
+    font-weight: bold;
+    font-size: 0.65rem;
+}
+.col-seed { 
+    width: 45px;
+    font-size: 0.6rem;
+    word-break: break-all;
+}
+>>>>>>> 65259f60a539484cc64e2aef5527042699c5c050
 
 /* レアリティ背景 */
 .rarity-0 { background-color: var(--rarity-0); }
@@ -164,9 +178,63 @@ th, td {
 .rarity-3 { background-color: var(--rarity-3); }
 .rarity-4 { background-color: var(--rarity-4); border-bottom: 2px solid #ba68c8; }
 
+<<<<<<< HEAD
 /* シミュレーションハイライト（背景色のみに変更） */
 .sim-highlighted {
     background-color: #c8e6c9 !important; /* 少し濃い目の緑で強調 */
+=======
+/* シミュレーション用追加スタイル (テーブルとテキスト共有) */
+.sim-route-remaining {
+    background-color: #00e676 !important; /* 鮮やかな緑 */
+}
+.sim-route-checked {
+    background-color: #c8e6c9 !important; /* 従来の緑 */
+}
+
+/* トースト通知用スタイル */
+.sim-toast {
+    position: fixed;
+    bottom: 20%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+    text-align: center;
+    max-width: 80%;
+    animation: toast-fade-in 0.3s ease-out;
+}
+
+@keyframes toast-fade-in {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+#ticket-summary-container {
+    transition: all 0.2s ease;
+    border: 1px solid #ddd;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#ticket-summary-container:hover {
+    background-color: #e9ecef !important;
+    border-color: #adb5bd !important;
+}
+
+#ticket-inputs-area {
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+>>>>>>> 65259f60a539484cc64e2aef5527042699c5c050
 }
 
 .is-rerolled {
@@ -190,5 +258,14 @@ footer {
 .loading {
     text-align: center;
     padding: 20px;
+<<<<<<< HEAD
     font-style: italic;
 }
+=======
+}
+
+.custom-item-weight-input::-webkit-inner-spin-button, 
+.custom-item-weight-input::-webkit-outer-spin-button { 
+    opacity: 0.5; 
+}
+>>>>>>> 65259f60a539484cc64e2aef5527042699c5c050
