@@ -5,16 +5,33 @@
 
 const DEFAULT_ITEM_SCORES = {
     groups: {
-        DARK_NEKOME: 1000000000, TREASURE_RADAR: 100000000, VITAN_C: 10000000,
-        BLUE_ORBS: 1000000, CHIBI: 100000, BATTLE_ITEMS: 10000, XP: 1000,
-        VITAN: 100, BASIC: 10, NEKOME: 1
+        DARK_NEKOME: 1000000000, TREASURE_RADAR: 100000000, VITAN_C: 10000000
     },
     items: {
+        // バトルアイテム (個別管理)
         "2002": 12000, "2005": 11000, "2003": 10000, "2000": 9000, "2004": 8000,
-        "2017": 1300, "2019": 1200, "2014": 1100, "2012": 1000, "2011": 900, "2010": 800, "2078": 700,
-        "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4, "2056": 110, "2055": 90
+        // XP (優先順位: 3万 > 1万 > 100万 > 50万 > 5千 > 10万G > 10万猫目)
+        // チケットコスト(福引G:200)との比較で選好を制御
+        "2012": 9000,  // 3万XP
+        "2011": 8000,  // 1万XP
+        "2017": 1000,  // 100万XP
+        "2019": 150,   // 50万XP (コスト200を下回り、単体ではマイナス評価)
+        "2010": 120,   // 5千XP
+        "2078": 100,   // 10万XP (福引G)
+        "2014": 100,   // 10万XP (猫目)
+        // 青玉 (個別管理: デフォルト 1,000,000)
+        "1000": 1000000, "1001": 1000000, "1002": 1000000, "1003": 1000000, "1004": 1000000, "1005": 1000000, "1006": 1000000, "1007": 1000000, "1008": 1000000,
+        // ちびキャラ (個別管理: デフォルト 100,000)
+        "209": 100000, "210": 100000, "211": 100000, "245": 100000, "246": 100000, "247": 100000, "311": 100000, "312": 100000, "313": 100000, "643": 100000,
+        // ビタン (個別管理)
+        "2056": 110, "2055": 90,
+        // 基本キャラ (個別管理: デフォルト 10)
+        "0": 10, "1": 10, "2": 10, "3": 10, "4": 10, "5": 10, "6": 10, "7": 10, "8": 10,
+        // 猫目 (個別管理: デフォルト 1前後)
+        "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4
     },
-    costs: { nyanko: 1000, fukubikiG: 100, fukubiki: 1 }
+    // チケット消費コストの重み（傾斜: 福引 100 < 福引G 200 < にゃん 300）
+    costs: { nyanko: 300, fukubikiG: 200, fukubiki: 100 }
 };
 
 const GACHA_TICKET_TYPES = {
@@ -29,7 +46,6 @@ function getSimAddress(idx) {
 
 /**
  * 内部抽選ロジック
- * @param {string} lastItemId 直前に「確定して排出された」アイテムID
  */
 function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     const gacha = gachaMaster[gachaId];
@@ -38,14 +54,12 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     const rng = new Xorshift32(seedsCache[nodeIdx]);
     let consumed = 0;
 
-    // 1段階目：レアリティ判定 (S1, S3, S5...)
     const s1 = rng.next(); consumed++;
     const targetRarity = determineRarity(s1, gacha.rarityRates);
     
     let filteredPool = gacha.pool.filter(id => itemMaster[id].rarity === targetRarity);
     if (filteredPool.length === 0) filteredPool = gacha.pool;
 
-    // 2段階目：スロット判定 (S2, S4, S6...)
     const s2 = rng.next(); consumed++;
     const charIndex = s2 % filteredPool.length;
     const originalItemId = String(filteredPool[charIndex]);
@@ -53,8 +67,6 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     let finalItemId = originalItemId;
     let isReroll = false;
 
-    // 一致判定: 直前に排出されたアイテムIDと比較。バナーに関わらず共通のIDを使用。
-    // itemMaster[id].rarity
     if (itemMaster[originalItemId].rarity === 1 && originalItemId === String(lastItemId) && filteredPool.length > 1) {
         isReroll = true;
         let excluded = [charIndex];
@@ -67,7 +79,6 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
             const finalSlot = mapToActualSlot(tempSlot, excluded);
             const nextItemId = String(filteredPool[finalSlot]);
 
-            // 再抽選結果が前回のアイテムと異なれば確定
             if (nextItemId !== String(lastItemId)) {
                 finalItemId = nextItemId;
                 break;
@@ -125,10 +136,17 @@ function getItemGroup(itemId) {
 
 function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
     const BEAM_WIDTH = 1000;
-    const maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
+    const TOTAL_LIMIT = 2000;
+
+    let maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
+    if (maxTotal > TOTAL_LIMIT) {
+        console.warn(`Total roll requested (${maxTotal}) exceeds safety limit. Capping at ${TOTAL_LIMIT}.`);
+        maxTotal = TOTAL_LIMIT;
+    }
+
     const dp = new Array(maxTotal + 1).fill(null).map(() => new Map());
 
-    const seedsCache = new Array(2000);
+    const seedsCache = new Array(10000);
     seedsCache[0] = initialSeed >>> 0;
     for (let i = 1; i < seedsCache.length; i++) {
         const rng = new Xorshift32(seedsCache[i - 1]);
@@ -136,12 +154,11 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
     }
 
     const weights = {
-        groups: (customWeights && customWeights.groups) ? customWeights.groups : DEFAULT_ITEM_SCORES.groups,
-        items: (customWeights && customWeights.items) ? customWeights.items : DEFAULT_ITEM_SCORES.items,
-        costs: (customWeights && customWeights.costs) ? customWeights.costs : DEFAULT_ITEM_SCORES.costs
+        groups: { ...DEFAULT_ITEM_SCORES.groups, ...(customWeights?.groups || {}) },
+        items: { ...DEFAULT_ITEM_SCORES.items, ...(customWeights?.items || {}) },
+        costs: { ...DEFAULT_ITEM_SCORES.costs, ...(customWeights?.costs || {}) }
     };
 
-    // 初期状態の lastItemId (単一の変数として管理)
     let startLastId = (initialLastId === 'none' || !initialLastId) ? null : String(initialLastId);
 
     dp[0].set(`0_${startLastId}_0_0_0`, {
@@ -189,7 +206,7 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
 
                 const nextState = {
                     nodeIdx: state.nodeIdx + res.consumed,
-                    lastItemId: res.itemId, // 今回の結果を「確定結果」として次回へ引き継ぐ
+                    lastItemId: res.itemId,
                     score: state.score + point - ticketCost,
                     usedNyanko: state.usedNyanko + (ticketType === "nyanko" ? 1 : 0),
                     usedFukubiki: state.usedFukubiki + (ticketType === "fukubiki" ? 1 : 0),
@@ -201,7 +218,9 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
                         itemId: res.itemId,
                         isReroll: res.isReroll,
                         addr: res.addr,
-                        nextAddr: getSimAddress(state.nodeIdx + res.consumed)
+                        nextAddr: getSimAddress(state.nodeIdx + res.consumed),
+                        nodeIdx: state.nodeIdx,
+                        consumed: res.consumed
                     })
                 };
 

@@ -12,9 +12,13 @@ window.viewData = {
     calculatedData: null,
     gachaIds: TARGET_GACHA_IDS, 
     initialLastRollId: "none",
-    highlightedRoute: new Map(),
-    showSimHighlight: true,
-    lastSimResult: null 
+    highlightedRoute: new Map(), // キー=addr_gId, 値=pathIndex
+    showSimHighlight: true, // ハイライト表示ON/OFF用
+    lastSimResult: null,
+    // デフォルトの初期枚数を更新
+    ticketLimits: { nyanko: 100, fukubiki: 300, fukubikiG: 200 },
+    checkedCount: 0, // 消し込み進捗
+    isTableCheckMode: false // テーブル消し込みモードの状態
 };
 
 /**
@@ -66,23 +70,114 @@ window.toggleFourColumnMode = function() {
 };
 
 /**
- * シード値を更新してテーブルを再描画する
+ * トースト通知を表示する
  */
-window.updateSeedAndRefresh = function(newSeed) {
-    const seedInput = document.getElementById('seed');
-    if (seedInput) {
-        seedInput.value = newSeed;
-        updateSeedSummary(); 
-        if (typeof UrlManager !== 'undefined') {
-            UrlManager.updateUrl(newSeed);
+function showSimToast(message) {
+    const existing = document.querySelector('.sim-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'sim-toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 500);
         }
-        generateTable();
+    }, 2500);
+}
+
+/**
+ * セルクリック時の統合ハンドラ
+ */
+window.handleCellClick = function(finalSeed, addr, gachaId) {
+    const highlightKey = `${addr}_${gachaId}`;
+    const routeIdx = window.viewData.highlightedRoute.get(highlightKey);
+
+    if (window.viewData.isTableCheckMode) {
+        if (routeIdx !== undefined) {
+            window.viewData.checkedCount = routeIdx + 1;
+            if (typeof UrlManager !== 'undefined') UrlManager.updateUrlParam('p', window.viewData.checkedCount);
+            
+            if (typeof displaySimulationResult === 'function' && window.viewData.lastSimResult) {
+                displaySimulationResult(window.viewData.lastSimResult);
+            }
+            generateTable();
+        } else {
+            showSimToast("テーブル消し込みモードでは、セルのタップによりテーブル更新（SEED更新）されません");
+        }
+    } else {
+        window.updateSeedAndRefresh(finalSeed, addr, gachaId);
     }
 };
 
 /**
- * 現在のSEED値をシステムに反映し、テーブルを更新する
+ * シード値を更新してテーブルを再描画する
  */
+window.updateSeedAndRefresh = function(newSeed, clickedAddr, clickedGachaId) {
+    if (window.viewData && window.viewData.lastSimResult && window.viewData.lastSimResult.path) {
+        const path = window.viewData.lastSimResult.path;
+        const clickedIndex = path.findIndex(p => p.addr === clickedAddr && p.gachaId === clickedGachaId);
+
+        if (clickedIndex !== -1) {
+            const consumedTickets = { nyanko: 0, fukubiki: 0, fukubikiG: 0 };
+            for (let i = 0; i <= clickedIndex; i++) {
+                const type = typeof GACHA_TICKET_TYPES !== 'undefined' ? GACHA_TICKET_TYPES[path[i].gachaId] : null;
+                if (type && consumedTickets[type] !== undefined) consumedTickets[type]++;
+            }
+
+            window.viewData.ticketLimits.nyanko = Math.max(0, window.viewData.ticketLimits.nyanko - consumedTickets.nyanko);
+            window.viewData.ticketLimits.fukubiki = Math.max(0, window.viewData.ticketLimits.fukubiki - consumedTickets.fukubiki);
+            window.viewData.ticketLimits.fukubikiG = Math.max(0, window.viewData.ticketLimits.fukubikiG - consumedTickets.fukubikiG);
+
+            if (typeof window.saveTicketSettingsToStorage === 'function') window.saveTicketSettingsToStorage();
+
+            window.viewData.checkedCount = 0;
+            if (typeof UrlManager !== 'undefined') UrlManager.updateUrlParam('p', 0);
+
+            const offset = path[clickedIndex].nodeIdx + path[clickedIndex].consumed;
+            const remainingPath = path.slice(clickedIndex + 1).map(p => {
+                const newNodeIdx = p.nodeIdx - offset;
+                return {
+                    ...p,
+                    nodeIdx: newNodeIdx,
+                    addr: typeof getSimAddress === 'function' ? getSimAddress(newNodeIdx) : p.addr,
+                    nextAddr: typeof getSimAddress === 'function' ? getSimAddress(newNodeIdx + p.consumed) : p.nextAddr
+                };
+            });
+
+            window.viewData.lastSimResult.path = remainingPath;
+
+            window.viewData.highlightedRoute = new Map();
+            remainingPath.forEach((p, idx) => {
+                window.viewData.highlightedRoute.set(`${p.addr}_${p.gachaId}`, idx);
+            });
+
+            window.viewData.lastSimResult.counts = { DARK_NEKOME: 0, TREASURE_RADAR: 0, VITAN_C: 0, BLUE_ORBS: 0 };
+            remainingPath.forEach(p => {
+                const group = typeof getItemGroup === 'function' ? getItemGroup(p.itemId) : null;
+                if (group && window.viewData.lastSimResult.counts[group] !== undefined) {
+                    window.viewData.lastSimResult.counts[group]++;
+                }
+            });
+
+            if (typeof displaySimulationResult === 'function') {
+                displaySimulationResult(window.viewData.lastSimResult);
+            }
+        }
+    }
+
+    const seedInput = document.getElementById('seed');
+    if (seedInput) {
+        seedInput.value = newSeed;
+        updateSeedSummary(); 
+        if (typeof UrlManager !== 'undefined') UrlManager.updateUrl(newSeed);
+        generateTable();
+    }
+};
+
 function applyCurrentSeed() {
     const seedInput = document.getElementById('seed');
     const seedDisplayWrapper = document.getElementById('seed-display-wrapper');
@@ -91,7 +186,6 @@ function applyCurrentSeed() {
     updateSeedSummary();
     if (typeof UrlManager !== 'undefined') UrlManager.updateUrl(seedInput.value);
     
-    // UIを要約モードに戻す
     if (seedEditControls) seedEditControls.style.display = 'none';
     if (seedDisplayWrapper) seedDisplayWrapper.style.display = 'flex';
     
@@ -110,7 +204,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateSeedUiBtn = document.getElementById('update-seed-ui-btn');
 
     if (seedDisplayWrapper && seedEditControls && updateSeedUiBtn) {
-        // 表示クリックで編集開始
         seedDisplayWrapper.onclick = () => {
             seedDisplayWrapper.style.display = 'none';
             seedEditControls.style.display = 'flex';
@@ -118,24 +211,18 @@ document.addEventListener('DOMContentLoaded', () => {
             seedInput.select();
         };
 
-        // 更新ボタンクリックで反映して終了
         updateSeedUiBtn.onclick = () => {
             applyCurrentSeed();
         };
 
-        // Enterキーでも反映
         seedInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 applyCurrentSeed();
             }
         });
 
-        seedDisplayWrapper.onmouseover = () => {
-            document.getElementById('seed-summary-text').style.color = '#0056b3';
-        };
-        seedDisplayWrapper.onmouseout = () => {
-            document.getElementById('seed-summary-text').style.color = '#007bff';
-        };
+        seedDisplayWrapper.onmouseover = () => { document.getElementById('seed-summary-text').style.color = '#0056b3'; };
+        seedDisplayWrapper.onmouseout = () => { document.getElementById('seed-summary-text').style.color = '#007bff'; };
     }
 
     const bottomControls = document.getElementById('bottom-controls');
@@ -144,10 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addRowsBtn.id = 'add-rows-btn';
         addRowsBtn.textContent = '+100行追加';
         addRowsBtn.style.backgroundColor = '#6c757d';
-        addRowsBtn.onclick = () => {
-            displayRollCount += 100;
-            generateTable();
-        };
+        addRowsBtn.onclick = () => { displayRollCount += 100; generateTable(); };
         bottomControls.appendChild(addRowsBtn);
     }
 
@@ -155,6 +239,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateSeedSummary(); 
     generateTable();
+
+    const urlTickets = typeof UrlManager !== 'undefined' ? UrlManager.getParam('t') : null;
+    if (urlTickets && typeof runSimulation === 'function') {
+        runSimulation();
+    }
 });
 
 function formatAddress(idx) {
@@ -179,61 +268,24 @@ function generateTable() {
 
     let masterHtml = isModeActive ? ConfirmManager.generateMasterInfoHtml(displayIds, gachaMaster, itemMaster) : '';
     
-    // 4列表示ボタン（小型化・スタイル調整）
     const fourColBtnText = isFourColumnMode ? '4列表示ON' : '4列表示OFF';
     const fourColBtnColor = isFourColumnMode ? '#28a745' : '#6c757d';
-    const fourColBtnHtml = `
-        <button onclick="toggleFourColumnMode()" style="
-            margin-left: 10px;
-            padding: 2px 5px;
-            font-size: 0.6rem;
-            background-color: ${fourColBtnColor};
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            vertical-align: middle;
-            line-height: 1;
-        ">${fourColBtnText}</button>
-    `;
+    const fourColBtnHtml = `<button onclick="toggleFourColumnMode()" style="margin-left: 10px; padding: 2px 5px; font-size: 0.6rem; background-color: ${fourColBtnColor}; color: white; border: none; border-radius: 3px; cursor: pointer; vertical-align: middle; line-height: 1;">${fourColBtnText}</button>`;
 
     let html = masterHtml + '<table>';
     const extraCols = isModeActive ? 2 : 0;
     const trackColSpan = displayIds.length + extraCols;
     
-    html += `<tr>
-        <th class="col-num" rowspan="2">NO.</th>
-        <th colspan="${trackColSpan}" class="track-header track-a">Track A${fourColBtnHtml}</th>
-        <th colspan="${trackColSpan}" class="track-header track-b">Track B</th>
-    </tr>`;
-
+    html += `<tr><th class="col-num" rowspan="2">NO.</th><th colspan="${trackColSpan}" class="track-header track-a">Track A${fourColBtnHtml}</th><th colspan="${trackColSpan}" class="track-header track-b">Track B</th></tr>`;
     html += `<tr>`;
     for(let i=0; i<2; i++) {
         const trackClass = (i === 0) ? 'track-a' : 'track-b';
-        if (isModeActive) {
-            html += `<th class="col-seed ${trackClass}">S1</th>
-                     <th class="col-seed ${trackClass}">S2</th>`;
-        }
+        if (isModeActive) html += `<th class="col-seed ${trackClass}">S1</th><th class="col-seed ${trackClass}">S2</th>`;
         displayIds.forEach(id => {
             const isClickable = ["0", "64", "63", "65"].includes(id);
             const isToggleDisabled = isFourColumnMode && (id === "63" || id === "65");
             const canClick = isClickable && !isToggleDisabled;
-
-            // ▽から「切替」ボタンに変更
-            const toggleBtnHtml = canClick ? `
-                <button onclick="toggleGacha('${id}')" style="
-                    margin-left: 4px;
-                    padding: 1px 4px;
-                    font-size: 0.55rem;
-                    background-color: #718096;
-                    color: white;
-                    border: none;
-                    border-radius: 2px;
-                    cursor: pointer;
-                    vertical-align: middle;
-                    line-height: 1.2;
-                ">切替</button>` : "";
-
+            const toggleBtnHtml = canClick ? `<button onclick="toggleGacha('${id}')" style="margin-left: 4px; padding: 1px 4px; font-size: 0.55rem; background-color: #718096; color: white; border: none; border-radius: 2px; cursor: pointer; vertical-align: middle; line-height: 1.2;">切替</button>` : "";
             html += `<th class="col-gacha ${trackClass}">${gachaMaster[id].name}${toggleBtnHtml}</th>`;
         });
     }
@@ -261,18 +313,8 @@ function generateTable() {
         TARGET_GACHA_IDS.forEach((gId, idx) => {
             const resA = allResultsA[idx];
             const resB = allResultsB[idx];
-            allNodes[currentIndexA][gId] = {
-                address: formatAddress(currentIndexA),
-                itemId: resA.itemId, rarityId: resA.rarity,
-                poolSize: resA.poolSize, reRollItemId: resA.reRollItemId,
-                seedsConsumed: resA.seedsConsumed 
-            };
-            allNodes[currentIndexB][gId] = {
-                address: formatAddress(currentIndexB),
-                itemId: resB.itemId, rarityId: resB.rarity,
-                poolSize: resB.poolSize, reRollItemId: resB.reRollItemId,
-                seedsConsumed: resB.seedsConsumed
-            };
+            allNodes[currentIndexA][gId] = { address: formatAddress(currentIndexA), itemId: resA.itemId, rarityId: resA.rarity, poolSize: resA.poolSize, reRollItemId: resA.reRollItemId, seedsConsumed: resA.seedsConsumed };
+            allNodes[currentIndexB][gId] = { address: formatAddress(currentIndexB), itemId: resB.itemId, rarityId: resB.rarity, poolSize: resB.poolSize, reRollItemId: resB.reRollItemId, seedsConsumed: resB.seedsConsumed };
         });
 
         html += '<tr>';
@@ -307,27 +349,20 @@ function advanceSeed(seed) {
 function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
     const gacha = gachaMaster[gachaId];
     const rng = new Xorshift32(state.currentSeed);
-    
     const s1 = rng.next();
-    const rRarity = s1 % 10000;
     const targetRarity = determineRarity(s1, gacha.rarityRates);
-    
     let filteredPool = gacha.pool.filter(itemId => itemMaster[itemId].rarity === targetRarity);
     if (filteredPool.length === 0) filteredPool = gacha.pool;
-    
     const s2 = rng.next();
     const totalChars = filteredPool.length;
     const charIndex = s2 % totalChars;
-    
     let lastGeneratedSeed = s2; 
     const originalItemId = String(filteredPool[charIndex]);
     const originalItem = itemMaster[originalItemId];
     let itemId = originalItemId;
     let reRollItemId = undefined;
-    
     const idSourceFinal = (rerollLinks[currentIndex] && rerollLinks[currentIndex][gachaId] !== undefined) ? String(rerollLinks[currentIndex][gachaId]) : null;
     const idAboveOriginal = state.lastAnyOriginalIds[gachaId] ? String(state.lastAnyOriginalIds[gachaId]) : null;
-
     let targetToAvoid = null;
     let isConsecutiveRerollTarget = false;
     if (idSourceFinal && originalItemId === idSourceFinal) {
@@ -336,7 +371,6 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
     } else if (idAboveOriginal && originalItemId === idAboveOriginal) {
         targetToAvoid = idAboveOriginal;
     }
-
     let isRerolled = false;
     let rerollHistory = [];
     if (originalItem.rarity === 1 && targetToAvoid !== null && totalChars > 1) {
@@ -350,17 +384,8 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
             const tempSlot = sNext % currentDivisor;
             const finalSlot = mapToActualSlot(tempSlot, excludedIndices);
             const nextItemId = String(filteredPool[finalSlot]);
-            
-            rerollHistory.push({
-                seed: sNext,
-                index: tempSlot,
-                name: itemMaster[nextItemId]?.name || "不明"
-            });
-            
-            if (nextItemId !== targetToAvoid) {
-                itemId = nextItemId; reRollItemId = nextItemId;
-                break;
-            }
+            rerollHistory.push({ seed: sNext, index: tempSlot, name: itemMaster[nextItemId]?.name || "不明" });
+            if (nextItemId !== targetToAvoid) { itemId = nextItemId; reRollItemId = nextItemId; break; }
             excludedIndices.push(finalSlot);
             if (excludedIndices.length >= 15) break; 
         }
@@ -370,57 +395,44 @@ function calculateRoll(gachaId, state, currentIndex, rerollLinks) {
     }
     state.lastAnyIds[gachaId] = itemId;
     state.lastAnyOriginalIds[gachaId] = originalItemId;
-
-    return {
-        itemId: itemId, 
-        reRollItemId: reRollItemId, 
-        name: itemMaster[itemId].name, 
-        originalName: originalItem.name,
-        rarity: itemMaster[itemId].rarity, 
-        isRerolled: isRerolled, 
-        isConsecutiveRerollTarget: isConsecutiveRerollTarget,
-        poolSize: totalChars, 
-        seedsConsumed: 2 + (isRerolled ? rerollHistory.length : 0),
-        finalSeed: lastGeneratedSeed, 
-        gachaName: gacha.name,
-        s1: s1,
-        rRarity: rRarity,
-        s2: s2,
-        charIndex: charIndex,
-        rerollHistory: rerollHistory
-    };
+    return { itemId: itemId, reRollItemId: reRollItemId, name: itemMaster[itemId].name, originalName: originalItem.name, rarity: itemMaster[itemId].rarity, isReroll: isRerolled, isConsecutiveRerollTarget: isConsecutiveRerollTarget, poolSize: totalChars, seedsConsumed: 2 + (isRerolled ? rerollHistory.length : 0), finalSeed: lastGeneratedSeed, gachaName: gacha.name, s1: s1, rRarity: (s1 % 10000), s2: s2, charIndex: charIndex, rerollHistory: rerollHistory };
 }
 
 function determineRarity(seed, rates) {
     const r = seed % 10000;
     let sum = 0;
     const sortedKeys = Object.keys(rates).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-    for (let key of sortedKeys) {
-        sum += rates[key];
-        if (r < sum) return parseInt(key, 10);
-    }
+    for (let key of sortedKeys) { sum += rates[key]; if (r < sum) return parseInt(key, 10); }
     return 1;
 }
 
 function renderCell(result, isModeActive, startIndex, isRowHighlighted = false, gachaId = null) {
     const displayRarity = isRowHighlighted ? 4 : result.rarity;
     const addr = formatAddress(startIndex);
-    
     const highlightKey = `${addr}_${gachaId}`;
-    const isSimHighlighted = (window.viewData.showSimHighlight && window.viewData.highlightedRoute.has(highlightKey));
-    const simHighlightClass = isSimHighlighted ? 'sim-highlighted' : '';
     
-    let extraAttrs = '';
-    if (isModeActive && typeof ConfirmManager !== 'undefined') {
-        extraAttrs = ConfirmManager.getCellAttributes(result);
-    } else {
-        extraAttrs = `onclick="updateSeedAndRefresh(${result.finalSeed})" title="シードを ${result.finalSeed} に更新して開始"`;
+    const routeIdx = window.viewData.highlightedRoute.get(highlightKey);
+    const isSimHighlighted = (window.viewData.showSimHighlight && routeIdx !== undefined);
+    
+    let simHighlightClass = '';
+    if (isSimHighlighted) {
+        simHighlightClass = (routeIdx < window.viewData.checkedCount) ? 'sim-route-checked' : 'sim-route-remaining';
     }
+
+    let titleText = "";
+    if (window.viewData.isTableCheckMode) {
+        titleText = isSimHighlighted ? "ここまで消し込み" : "";
+    } else {
+        titleText = `シードを ${result.finalSeed} に更新して開始`;
+    }
+
+    const clickFn = `handleCellClick(${result.finalSeed}, '${addr}', '${gachaId}')`;
+
+    let extraAttrs = (isModeActive && typeof ConfirmManager !== 'undefined') ? 
+                     ConfirmManager.getCellAttributes(result) : 
+                     `onclick="${clickFn}" title="${titleText}"`;
 
     let content = result.isRerolled ? `${result.originalName}<br>${(result.isConsecutiveRerollTarget ? 'R' : '') + formatAddress(startIndex + result.seedsConsumed)})${result.name}` : result.name;
     if (isRowHighlighted && (gachaId === "0" || gachaId === "64")) content += '<br>(CE⇒闇猫目)';
-
     return `<td class="rarity-${displayRarity} ${result.isRerolled ? 'is-rerolled' : ''} ${simHighlightClass}" style="cursor:pointer;" ${extraAttrs}>${content}</td>`;
 }
-
-window.runSimulationAndDisplay = function() { generateTable(); };
