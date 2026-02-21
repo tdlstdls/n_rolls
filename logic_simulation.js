@@ -1,6 +1,6 @@
 /**
  * logic_simulation.js
- * 担当: 多機能・多ガチャ対応 最適ルート探索（iPhoneメモリ最適化版：親ポインタ方式）
+ * 担当: 多機能・多ガチャ対応 最適ルート探索（グローバル一致判定・iPhoneメモリ最適化版）
  */
 
 const DEFAULT_ITEM_SCORES = {
@@ -38,6 +38,7 @@ function getSimAddress(idx) {
 
 /**
  * 内部抽選ロジック
+ * @param {string} lastItemId ガチャの種類を問わず、直前に「確定して排出された」アイテムID
  */
 function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     const gacha = gachaMaster[gachaId];
@@ -59,6 +60,7 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     let finalItemId = originalItemId;
     let isReroll = false;
 
+    // 【修正】ガチャの種類を問わず、直前の排出アイテムIDと比較
     if (itemMaster[originalItemId].rarity === 1 && originalItemId === String(lastItemId) && filteredPool.length > 1) {
         isReroll = true;
         let excluded = [charIndex];
@@ -71,6 +73,7 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
             const finalSlot = mapToActualSlot(tempSlot, excluded);
             const nextItemId = String(filteredPool[finalSlot]);
 
+            // 再抽選結果が「直前の排出アイテム」と異なれば確定
             if (nextItemId !== String(lastItemId)) {
                 finalItemId = nextItemId;
                 break;
@@ -126,17 +129,12 @@ function getItemGroup(itemId) {
     return null;
 }
 
-/**
- * 最適ルート検索実行
- */
 function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
-    const BEAM_WIDTH = 400; // iPhoneのメモリ制限を考慮し削減
+    const BEAM_WIDTH = 400; 
     const TOTAL_LIMIT = 2000;
 
     let maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
-    if (maxTotal > TOTAL_LIMIT) {
-        maxTotal = TOTAL_LIMIT;
-    }
+    if (maxTotal > TOTAL_LIMIT) maxTotal = TOTAL_LIMIT;
 
     const dp = new Array(maxTotal + 1).fill(null).map(() => new Map());
 
@@ -153,16 +151,16 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         costs: { ...DEFAULT_ITEM_SCORES.costs, ...(customWeights?.costs || {}) }
     };
 
+    // 初期状態の lastItemId (グローバルで単一)
     let startLastId = (initialLastId === 'none' || !initialLastId) ? null : String(initialLastId);
 
-    // 初期状態
     dp[0].set(`0_${startLastId}_0_0_0`, {
         nodeIdx: 0,
         lastItemId: startLastId,
         score: 0,
         usedNyanko: 0, usedFukubiki: 0, usedFukubikiG: 0,
-        prev: null, // 親要素への参照
-        action: null // この状態で発生したアクション
+        prev: null,
+        action: null
     });
 
     const getPoint = (itemId) => {
@@ -203,12 +201,12 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
 
                 const nextState = {
                     nodeIdx: state.nodeIdx + res.consumed,
-                    lastItemId: res.itemId,
+                    lastItemId: res.itemId, // ガチャIDを問わず、今回の結果を次回の比較対象にする
                     score: state.score + point - ticketCost,
                     usedNyanko: state.usedNyanko + (ticketType === "nyanko" ? 1 : 0),
                     usedFukubiki: state.usedFukubiki + (ticketType === "fukubiki" ? 1 : 0),
                     usedFukubikiG: state.usedFukubikiG + (ticketType === "fukubikiG" ? 1 : 0),
-                    prev: state, // 親ポインタを保持（配列コピーはしない）
+                    prev: state,
                     action: {
                         gachaId: gId,
                         gachaName: gachaMaster[gId]?.name || gId,
@@ -230,7 +228,6 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         }
     }
     
-    // スコアが最も高い状態を探す
     let bestOverall = null;
     let bestScore = -Infinity;
     for (let t = maxTotal; t >= 0; t--) {
@@ -243,7 +240,6 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
     }
 
     if (bestOverall) {
-        // 親ポインタを辿って経路(path)を復元
         const path = [];
         let curr = bestOverall;
         while (curr && curr.action) {
@@ -252,7 +248,6 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         }
         bestOverall.path = path.reverse();
         
-        // カウントの集計
         bestOverall.counts = { DARK_NEKOME: 0, TREASURE_RADAR: 0, VITAN_C: 0, BLUE_ORBS: 0 };
         bestOverall.path.forEach(p => {
             const group = getItemGroup(p.itemId);
@@ -261,4 +256,3 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
     }
     return bestOverall;
 }
-
