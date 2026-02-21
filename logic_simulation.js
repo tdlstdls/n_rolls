@@ -1,30 +1,13 @@
-/**
+﻿/**
  * logic_simulation.js
-<<<<<<< HEAD
  * 担当: 多機能・多ガチャ対応 最適ルート探索（iPhoneメモリ最適化版：親参照方式）
-=======
- * 役割: 高精度・低負荷なルート探索エンジン（ABバランス維持 & 独立判定ステート）
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
  */
 
-// 内部用Xorshiftクラス（外部依存を排除）
-class Xorshift32 {
-    constructor(seed) { this.x = seed >>> 0; }
-    next() {
-        this.x ^= (this.x << 13); this.x ^= (this.x >>> 17); this.x ^= (this.x << 15);
-        return (this.x >>> 0);
-    }
-}
-
-// アイテムのスコア定義（闇猫目を絶対最優先）
 const DEFAULT_ITEM_SCORES = {
-    groups: { 
-        DARK_NEKOME: 1000000000,   // 最優先
-        TREASURE_RADAR: 100000000, 
-        VITAN_C: 10000000 
+    groups: {
+        DARK_NEKOME: 1000000000, TREASURE_RADAR: 100000000, VITAN_C: 10000000
     },
     items: {
-<<<<<<< HEAD
         // バトルアイテム (個別管理)
         "2002": 12000, "2005": 11000, "2003": 10000, "2000": 9000, "2004": 8000,
         // XP (優先順位: 3万 > 1万 > 100万 > 50万 > 5千 > 10万G > 10万猫目)
@@ -39,53 +22,22 @@ const DEFAULT_ITEM_SCORES = {
         "0": 10, "1": 10, "2": 10, "3": 10, "4": 10, "5": 10, "6": 10, "7": 10, "8": 10,
         // 猫目
         "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4
-=======
-        "2002": 12000, "2005": 11000, "2003": 10000, "2000": 9000, "2004": 8000, // バトルアイテム
-        "1000": 1000000, "1001": 1000000, "1002": 1000000, // 青玉
-        "2012": 9000, "2011": 8000, "2017": 1000, // XP
-        "2053": 1.6, "2051": 1.2, "2050": 0.8, "2052": 0.4 // 猫目
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
     },
     costs: { nyanko: 300, fukubikiG: 200, fukubiki: 100 }
 };
 
-const GACHA_TICKET_TYPES = { "0": "nyanko", "64": "nyanko", "65": "nyanko", "62": "fukubiki", "63": "fukubikiG" };
+const GACHA_TICKET_TYPES = {
+    "0": "nyanko", "64": "nyanko", "65": "nyanko", "62": "fukubiki", "63": "fukubikiG"
+};
 
-// 高速計算用グループキャッシュ
-let ITEM_GROUP_CACHE = null;
-function buildGroupCache() {
-    const cache = {};
-    const groups = {
-        DARK_NEKOME: ["2058"],
-        TREASURE_RADAR: ["2001"],
-        VITAN_C: ["2057"],
-        BLUE_ORBS: ["1000","1001","1002","1003","1004","1005","1006","1007","1008"],
-        CHIBI: ["209","210","211","245","246","247","311","312","313","643"],
-        BATTLE_ITEMS: ["2000","2002","2003","2004","2005"],
-        XP: ["2010","2011","2012","2014","2017","2019","2078"],
-        BASIC: ["0","1","2","3","4","5","6","7","8"],
-        NEKOME: ["2050","2051","2052","2053"]
-    };
-    Object.keys(itemMaster).forEach(id => {
-        let found = null;
-        for (let g in groups) { if (groups[g].includes(id)) { found = g; break; } }
-        cache[id] = found;
-    });
-    return cache;
-}
-
-/**
- * 住所（A1, B1...）の計算
- */
 function getSimAddress(idx) {
-    const row = (idx >> 1) + 1;
+    const row = Math.floor(idx / 2) + 1;
     const side = (idx % 2 === 0) ? 'A' : 'B';
-    return side + row;
+    return `${side}${row}`;
 }
 
 /**
- * 独立した一致判定ロジックを含む抽選シミュレーション
- * @param {string} lastItemId この探索パスにおける直前の排出アイテムID
+ * 内部抽選ロジック
  */
 function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     const gacha = gachaMaster[gachaId];
@@ -95,75 +47,104 @@ function simulateRollInternal(nodeIdx, gachaId, lastItemId, seedsCache) {
     let consumed = 0;
 
     const s1 = rng.next(); consumed++;
-    const r = s1 % 10000;
-    let targetRarity = 1, sum = 0;
-    const rates = gacha.rarityRates;
-    const sortedKeys = Object.keys(rates).sort((a, b) => a - b);
-    for (let k of sortedKeys) { sum += rates[k]; if (r < sum) { targetRarity = parseInt(k); break; } }
+    const targetRarity = determineRarity(s1, gacha.rarityRates);
     
-    let pool = gacha.pool.filter(id => itemMaster[id].rarity === targetRarity);
-    if (pool.length === 0) pool = gacha.pool;
+    let filteredPool = gacha.pool.filter(id => itemMaster[id].rarity === targetRarity);
+    if (filteredPool.length === 0) filteredPool = gacha.pool;
 
     const s2 = rng.next(); consumed++;
-    const charIndex = s2 % pool.length;
-    const originalId = String(pool[charIndex]);
+    const charIndex = s2 % filteredPool.length;
+    const originalItemId = String(filteredPool[charIndex]);
 
-    let finalId = originalId, isReroll = false;
+    let finalItemId = originalItemId;
+    let isReroll = false;
 
-    // ガチャ種類を問わず、このパスの直前アイテムと一致するか判定（レア被り）
-    if (itemMaster[originalId].rarity === 1 && originalId === String(lastItemId) && pool.length > 1) {
+    if (itemMaster[originalItemId].rarity === 1 && originalItemId === String(lastItemId) && filteredPool.length > 1) {
         isReroll = true;
         let excluded = [charIndex];
         while (true) {
-            const divisor = pool.length - excluded.length;
+            const divisor = filteredPool.length - excluded.length;
             if (divisor <= 0) break;
+            
             const sNext = rng.next(); consumed++;
             const tempSlot = sNext % divisor;
-            let finalSlot = tempSlot;
-            let sortedEx = [...excluded].sort((a, b) => a - b);
-            for (let ex of sortedEx) { if (finalSlot >= ex) finalSlot++; else break; }
-            const nextId = String(pool[finalSlot]);
-            if (nextId !== String(lastItemId)) { finalId = nextId; break; }
+            const finalSlot = mapToActualSlot(tempSlot, excluded);
+            const nextItemId = String(filteredPool[finalSlot]);
+
+            if (nextItemId !== String(lastItemId)) {
+                finalItemId = nextItemId;
+                break;
+            }
             excluded.push(finalSlot);
             if (excluded.length >= 15) break;
         }
     }
-    return { itemId: finalId, consumed, isReroll, addr: getSimAddress(nodeIdx) };
+
+    return { itemId: finalItemId, consumed, isReroll, addr: getSimAddress(nodeIdx) };
+}
+
+function determineRarity(seed, rates) {
+    const r = seed % 10000;
+    let sum = 0;
+    const sortedKeys = Object.keys(rates).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    for (let key of sortedKeys) {
+        sum += rates[key];
+        if (r < sum) return parseInt(key, 10);
+    }
+    return 1;
+}
+
+function mapToActualSlot(tempSlot, excludedIndices) {
+    let sortedEx = [...excludedIndices].sort((a, b) => a - b);
+    let finalSlot = tempSlot;
+    for (let ex of sortedEx) {
+        if (finalSlot >= ex) finalSlot++;
+        else break;
+    }
+    return finalSlot;
+}
+
+function getItemGroup(itemId) {
+    const id = String(itemId);
+    if (id === "2058") return "DARK_NEKOME";
+    if (id === "2001") return "TREASURE_RADAR";
+    if (id === "2057") return "VITAN_C";
+    const idInt = parseInt(id);
+    if (idInt >= 1000 && idInt <= 1008) return "BLUE_ORBS";
+    const chibiIds = ["209", "210", "211", "245", "246", "247", "311", "312", "313", "643"];
+    if (chibiIds.includes(id)) return "CHIBI";
+    const battleIds = ["2000", "2002", "2003", "2004", "2005"];
+    if (battleIds.includes(id)) return "BATTLE_ITEMS";
+    const xpIds = ["2010", "2011", "2012", "2014", "2017", "2019", "2078"];
+    if (xpIds.includes(id)) return "XP";
+    const vitanIds = ["2055", "2056"];
+    if (vitanIds.includes(id)) return "VITAN";
+    const basicIds = ["0", "1", "2", "3", "4", "5", "6", "7", "8"];
+    if (basicIds.includes(id)) return "BASIC";
+    const nekomeIds = ["2050", "2051", "2052", "2053"];
+    if (nekomeIds.includes(id)) return "NEKOME";
+    return null;
 }
 
 /**
-<<<<<<< HEAD
  * 最適ルート検索実行
  */
 function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
     const BEAM_WIDTH = 400; 
-=======
- * ルート検索（ビームサーチ：親ポインタ方式 & ABバランス重視）
- */
-function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
-    const BEAM_WIDTH = 150; // iPhoneの限界性能に最適化
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
     const TOTAL_LIMIT = 2000;
 
-    ITEM_GROUP_CACHE = buildGroupCache();
     let maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
-<<<<<<< HEAD
     if (maxTotal > TOTAL_LIMIT) {
         maxTotal = TOTAL_LIMIT;
     }
-=======
-    if (maxTotal > TOTAL_LIMIT) maxTotal = TOTAL_LIMIT;
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
 
     const dp = new Array(maxTotal + 1).fill(null).map(() => new Map());
-    
-    // シードキャッシュの生成
-    const seedsCache = new Uint32Array(8000);
+
+    const seedsCache = new Array(10000);
     seedsCache[0] = initialSeed >>> 0;
     for (let i = 1; i < seedsCache.length; i++) {
-        let x = seedsCache[i - 1];
-        x ^= (x << 13); x ^= (x >>> 17); x ^= (x << 15);
-        seedsCache[i] = x >>> 0;
+        const rng = new Xorshift32(seedsCache[i - 1]);
+        seedsCache[i] = rng.next();
     }
 
     const weights = {
@@ -174,7 +155,6 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
 
     let startLastId = (initialLastId === 'none' || !initialLastId) ? null : String(initialLastId);
 
-<<<<<<< HEAD
     // 初期状態
     dp[0].set(`0_${startLastId}_0_0_0`, {
         nodeIdx: 0,
@@ -182,23 +162,20 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         score: 0,
         usedNyanko: 0, usedFukubiki: 0, usedFukubikiG: 0,
         historyNode: null
-=======
-    // 初期状態 (lastItemId を独立保持)
-    dp[0].set(`0_${startLastId}`, {
-        nodeIdx: 0, lastItemId: startLastId, score: 0,
-        usedN: 0, usedF: 0, usedFG: 0,
-        nodeA: 0, nodeB: 0, // A/Bそれぞれの進み具合を保持
-        prev: null, action: null
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
     });
 
+    const getPoint = (itemId) => {
+        const idStr = String(itemId);
+        if (weights.items[idStr] !== undefined) return weights.items[idStr];
+        const group = getItemGroup(idStr);
+        return weights.groups[group] || 0;
+    };
+
+    const getItemName = (id) => itemMaster[id]?.name || "不明";
+
     for (let t = 0; t < maxTotal; t++) {
-<<<<<<< HEAD
         if (!dp[t] || dp[t].size === 0) continue;
         
-=======
-        if (dp[t].size === 0) continue;
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
         let states = Array.from(dp[t].values());
         if (states.length > BEAM_WIDTH) {
             states.sort((a, b) => b.score - a.score);
@@ -207,27 +184,24 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
 
         for (const state of states) {
             for (const gId of gachaIds) {
-                const type = GACHA_TICKET_TYPES[gId];
-                if (!type) continue;
-                if (type === "nyanko" && state.usedN >= limits.nyanko) continue;
-                if (type === "fukubiki" && state.usedF >= limits.fukubiki) continue;
-                if (type === "fukubikiG" && state.usedFG >= limits.fukubikiG) continue;
+                const ticketType = GACHA_TICKET_TYPES[gId];
+                if (!ticketType) continue;
 
-                // 独立した一致判定用IDを使用して抽選
+                let canRoll = false;
+                if (ticketType === "nyanko" && state.usedNyanko < limits.nyanko) canRoll = true;
+                else if (ticketType === "fukubiki" && state.usedFukubiki < limits.fukubiki) canRoll = true;
+                else if (ticketType === "fukubikiG" && state.usedFukubikiG < limits.fukubikiG) canRoll = true;
+
+                if (!canRoll) continue;
+
                 const res = simulateRollInternal(state.nodeIdx, gId, state.lastItemId, seedsCache);
                 if (!res) continue;
 
-                const idStr = res.itemId;
-                const itemScore = weights.items[idStr] !== undefined ? weights.items[idStr] : (weights.groups[ITEM_GROUP_CACHE[idStr]] || 0);
-                
-                // ABバランス補正ロジック: AとBの進み具合が離れるほど微小なマイナスをかけ、闇猫目見逃しを抑制
-                const nextNodeA = state.nodeIdx % 2 === 0 ? state.nodeIdx + res.consumed : state.nodeIdx;
-                const nextNodeB = state.nodeIdx % 2 !== 0 ? state.nodeIdx + res.consumed : state.nodeIdx;
-                const balancePenalty = Math.abs(nextNodeA - nextNodeB) * 0.1;
+                const point = getPoint(res.itemId);
+                const ticketCost = weights.costs[ticketType] || 0;
 
                 const nextState = {
                     nodeIdx: state.nodeIdx + res.consumed,
-<<<<<<< HEAD
                     lastItemId: res.itemId,
                     score: state.score + point - ticketCost,
                     usedNyanko: state.usedNyanko + (ticketType === "nyanko" ? 1 : 0),
@@ -245,23 +219,10 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
                             nodeIdx: state.nodeIdx,
                             consumed: res.consumed
                         }
-=======
-                    lastItemId: idStr, // 次の判定のためにこのパスのIDを更新
-                    score: state.score + itemScore - (weights.costs[type] || 0) - balancePenalty,
-                    usedN: state.usedN + (type === "nyanko" ? 1 : 0),
-                    usedF: state.usedF + (type === "fukubiki" ? 1 : 0),
-                    usedFG: state.usedFG + (type === "fukubikiG" ? 1 : 0),
-                    prev: state, // 親へのポインタ（配列コピーなし）
-                    action: {
-                        gachaId: gId, gachaName: gachaMaster[gId].name,
-                        item: itemMaster[idStr].name, itemId: idStr,
-                        isReroll: res.isReroll, addr: res.addr
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
                     }
                 };
 
-                // ステートキー (進捗 + 直前アイテム + 消費枚数)
-                const key = `${nextState.nodeIdx}_${idStr}_${nextState.usedN}_${nextState.usedF}`;
+                const key = `${nextState.nodeIdx}_${nextState.lastItemId}_${nextState.usedNyanko}_${nextState.usedFukubiki}_${nextState.usedFukubikiG}`;
                 const existing = dp[t + 1].get(key);
                 if (!existing || existing.score < nextState.score) {
                     dp[t + 1].set(key, nextState);
@@ -270,7 +231,6 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         }
     }
     
-<<<<<<< HEAD
     let bestFinalState = null;
     let bestScore = -Infinity;
     for (let t = maxTotal; t >= 0; t--) {
@@ -306,32 +266,4 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
 
     delete bestOverall.historyNode;
     return bestOverall;
-=======
-    // スコア最大の最終状態を特定
-    let best = null, maxScore = -Infinity;
-    for (let t = maxTotal; t >= 0; t--) {
-        for (const s of dp[t].values()) {
-            if (s.score > maxScore) { maxScore = s.score; best = s; }
-        }
-    }
-
-    if (best) {
-        // 親ポインタを遡って1つのルート配列を作成（メモリ節約の核）
-        const path = [];
-        let curr = best;
-        while (curr && curr.action) {
-            path.push(curr.action);
-            curr = curr.prev;
-        }
-        best.path = path.reverse();
-
-        // 統計情報の集計
-        best.counts = { DARK_NEKOME: 0, TREASURE_RADAR: 0, VITAN_C: 0, BLUE_ORBS: 0 };
-        best.path.forEach(p => {
-            const group = ITEM_GROUP_CACHE[p.itemId];
-            if (best.counts[group] !== undefined) best.counts[group]++;
-        });
-    }
-    return best;
->>>>>>> 733956e7beef91e325f5359323172e7d06c529f7
 }
