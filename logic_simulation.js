@@ -1,6 +1,6 @@
 ﻿/**
  * logic_simulation.js
- * 担当: 多機能・多ガチャ対応 最適ルート探索（iPhoneメモリ最適化版：親参照方式）
+ * 担当: 多機能・多ガチャ対応 最適ルート探索（軽量化・高速化版）
  */
 
 const DEFAULT_ITEM_SCORES = {
@@ -127,15 +127,16 @@ function getItemGroup(itemId) {
 }
 
 /**
- * 最適ルート検索実行
+ * 最適ルート検索実行 (軽量・高速化版)
  */
 function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeights = null) {
-    const BEAM_WIDTH = 400; 
-    const TOTAL_LIMIT = 2000;
+    const BEAM_WIDTH = 150;      // 候補保持数を削減して高速化
+    const SOFT_ROLL_LIMIT = 300; // 最大探索ロール数を制限
 
+    // 探索上限をチケット合計とソフトリミットの小さい方に設定
     let maxTotal = limits.nyanko + limits.fukubiki + limits.fukubikiG;
-    if (maxTotal > TOTAL_LIMIT) {
-        maxTotal = TOTAL_LIMIT;
+    if (maxTotal > SOFT_ROLL_LIMIT) {
+        maxTotal = SOFT_ROLL_LIMIT;
     }
 
     const dp = new Array(maxTotal + 1).fill(null).map(() => new Map());
@@ -160,6 +161,7 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         nodeIdx: 0,
         lastItemId: startLastId,
         score: 0,
+        dnCount: 0, // 闇猫目カウントを追加
         usedNyanko: 0, usedFukubiki: 0, usedFukubikiG: 0,
         historyNode: null
     });
@@ -177,12 +179,19 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
         if (!dp[t] || dp[t].size === 0) continue;
         
         let states = Array.from(dp[t].values());
+        
+        // 枝刈り：3つ以上の闇猫目が見つかっている場合、それ以外のルートを大幅に制限
+        const hasHighQualityRoute = states.some(s => s.dnCount >= 3);
+        
         if (states.length > BEAM_WIDTH) {
             states.sort((a, b) => b.score - a.score);
             states = states.slice(0, BEAM_WIDTH);
         }
 
         for (const state of states) {
+            // 3つ目以降の闇猫目を目指す際、1つ目も取れていないルートはスキップ（簡易FIX）
+            if (hasHighQualityRoute && state.dnCount < 1) continue;
+
             for (const gId of gachaIds) {
                 const ticketType = GACHA_TICKET_TYPES[gId];
                 if (!ticketType) continue;
@@ -198,12 +207,14 @@ function runGachaSearch(initialSeed, initialLastId, limits, gachaIds, customWeig
                 if (!res) continue;
 
                 const point = getPoint(res.itemId);
+                const isDN = (getItemGroup(res.itemId) === "DARK_NEKOME");
                 const ticketCost = weights.costs[ticketType] || 0;
 
                 const nextState = {
                     nodeIdx: state.nodeIdx + res.consumed,
                     lastItemId: res.itemId,
                     score: state.score + point - ticketCost,
+                    dnCount: state.dnCount + (isDN ? 1 : 0),
                     usedNyanko: state.usedNyanko + (ticketType === "nyanko" ? 1 : 0),
                     usedFukubiki: state.usedFukubiki + (ticketType === "fukubiki" ? 1 : 0),
                     usedFukubikiG: state.usedFukubikiG + (ticketType === "fukubikiG" ? 1 : 0),

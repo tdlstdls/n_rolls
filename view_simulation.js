@@ -1,6 +1,6 @@
 ﻿/**
  * view_simulation.js
- * 担当: ルート検索UI（初期表示OFF・iPhone負荷軽減版）
+ * 担当: ルート検索UI（表示メッセージの整合性修正版）
  */
 
 const STORAGE_KEY = 'nrolls_custom_weights_v2';
@@ -23,7 +23,6 @@ function createStyledElement(tag, styles = {}, properties = {}) {
  * シミュレーション表示エリアの初期化
  */
 function initializeSimulationView() {
-    // 【修正】初期状態を強制的に false (OFF) に設定
     if (window.viewData.showSimText === undefined) {
         window.viewData.showSimText = false;
     }
@@ -37,8 +36,6 @@ function initializeSimulationView() {
         const resultDiv = document.getElementById('result');
         if (resultDiv) resultDiv.insertBefore(simContainer, resultDiv.firstChild);
     } else {
-        // 【修正】SEED表示の退避ロジック
-        // simContainerをクリアする前に、中に移動している .input-group を header に戻す
         const inputGroup = document.querySelector('.input-group');
         const header = document.querySelector('header');
         if (inputGroup && header && !header.contains(inputGroup)) {
@@ -113,7 +110,6 @@ function initializeSimulationView() {
     simGroup.appendChild(customPanel);
     simContainer.appendChild(simGroup);
 
-    // 【重要】テキスト表示エリア：初期状態 showSimText (false) に基づいて style.display を設定
     const resultDisplay = createStyledElement('div', {
         marginTop: '10px', padding: '15px', border: '1px solid #28a745',
         backgroundColor: '#f9fff9', whiteSpace: 'pre-wrap', fontFamily: 'monospace',
@@ -141,7 +137,7 @@ function initializeSimulationView() {
             fukubiki: parseInt(document.getElementById('simTicketFukubiki').value) || 0,
             fukubikiG: parseInt(document.getElementById('simTicketFukubikiG').value) || 0
         };
-        window.saveTicketSettingsToStorage();
+        if (typeof window.saveTicketSettingsToStorage === 'function') window.saveTicketSettingsToStorage();
     };
 
     loadSettingsFromStorage();
@@ -172,7 +168,6 @@ function updateSimTextButtonState() {
     const btn = document.getElementById('toggleSimTextBtn');
     if (!btn) return;
     const isActive = !!window.viewData.showSimText;
-    // ONの時に「テキスト表示ON」と表示し、緑色にする
     btn.textContent = isActive ? 'テキスト表示ON' : 'テキスト表示OFF';
     btn.style.backgroundColor = isActive ? '#28a745' : '#6c757d';
 }
@@ -181,7 +176,6 @@ function displaySimulationResult(result) {
     const display = document.getElementById('sim-result-text');
     if (!display) return;
     
-    // 再描画時も現在のステートに従う
     display.style.display = window.viewData.showSimText ? 'block' : 'none';
     display.innerHTML = "";
 
@@ -193,7 +187,13 @@ function displaySimulationResult(result) {
     const header = createStyledElement('div', {
         fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #28a745', paddingBottom: '4px'
     });
-    header.textContent = `【ルート検索結果】(闇猫目:${result.counts.DARK_NEKOME} / トレレ:${result.counts.TREASURE_RADAR})`;
+    
+    // 【修正】タイトルの文言を範囲限定であることが伝わるように変更
+    const isLimited = (result.path.length >= 300);
+    const titleText = isLimited ? "【最初の300ロール・検索結果】" : "【ルート検索結果】";
+    const limitNote = isLimited ? " <span style='color:#d9534f; font-size:0.75rem;'>(負荷軽減のため範囲を制限しました)</span>" : "";
+    
+    header.innerHTML = `${titleText}(闇猫目:${result.counts.DARK_NEKOME} / トレレ:${result.counts.TREASURE_RADAR})${limitNote}`;
     display.appendChild(header);
 
     let i = 0;
@@ -250,10 +250,6 @@ function displaySimulationResult(result) {
     }
 }
 
-// -------------------------------------------------------------------------
-// 以下、補助関数 (ボタン状態更新など)
-// -------------------------------------------------------------------------
-
 function toggleRouteHighlight() {
     window.viewData.showSimHighlight = !window.viewData.showSimHighlight;
     if (!window.viewData.showSimHighlight) window.viewData.isTableCheckMode = false;
@@ -292,6 +288,15 @@ function runSimulation() {
     if (isNaN(initialSeed)) return;
     const limits = window.viewData.ticketLimits || { nyanko: 100, fukubiki: 100, fukubikiG: 100 };
     
+    const totalTickets = limits.nyanko + limits.fukubiki + limits.fukubikiG;
+    const isLimited = (totalTickets > 300);
+
+    if (isLimited) {
+        if (typeof showSimToast === 'function') showSimToast("枚数が多いため、先頭300ロールを検索します");
+    } else {
+        if (typeof showSimToast === 'function') showSimToast("ルート検索を開始します...");
+    }
+
     let weights = null;
     if (window.isCustomMode) {
         weights = { groups: {}, items: {}, costs: {} };
@@ -318,7 +323,16 @@ function runSimulation() {
             if (el) el.style.display = 'inline-block';
         });
         
+        // 【修正】トーストのメッセージを要望に合わせて変更
+        const successMsg = isLimited 
+            ? "負荷軽減のため最初の300ロールの検索を行い、完了しました" 
+            : "ルート検索が完了しました";
+        
+        if (typeof showSimToast === 'function') showSimToast(successMsg);
+        
         if (typeof generateTable === 'function') generateTable();
+    } else {
+        if (typeof showSimToast === 'function') showSimToast("有効なルートが見つかりませんでした");
     }
 }
 
