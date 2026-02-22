@@ -1,6 +1,6 @@
 ﻿/**
  * view_simulation.js
- * 担当: ルート検索UI（表示メッセージの整合性修正版）
+ * 担当: ルート検索UI（延長検索・メッセージ整合性版）
  */
 
 const STORAGE_KEY = 'nrolls_custom_weights_v2';
@@ -19,16 +19,9 @@ function createStyledElement(tag, styles = {}, properties = {}) {
     return element;
 }
 
-/**
- * シミュレーション表示エリアの初期化
- */
 function initializeSimulationView() {
-    if (window.viewData.showSimText === undefined) {
-        window.viewData.showSimText = false;
-    }
-
+    if (window.viewData.showSimText === undefined) { window.viewData.showSimText = false; }
     let simContainer = document.getElementById('sim-ui-container');
-    
     if (!simContainer) {
         simContainer = document.createElement('div');
         simContainer.id = 'sim-ui-container';
@@ -38,24 +31,13 @@ function initializeSimulationView() {
     } else {
         const inputGroup = document.querySelector('.input-group');
         const header = document.querySelector('header');
-        if (inputGroup && header && !header.contains(inputGroup)) {
-            header.appendChild(inputGroup);
-        }
+        if (inputGroup && header && !header.contains(inputGroup)) { header.appendChild(inputGroup); }
     }
-
     simContainer.innerHTML = '';
 
     const limits = window.viewData.ticketLimits || { nyanko: 100, fukubiki: 100, fukubikiG: 100 };
-
-    const simGroup = createStyledElement('div', {
-        padding: '10px 15px', background: '#fff', borderRadius: '8px',
-        border: '1px solid #ddd', marginTop: '5px'
-    });
-
-    const controlRow = createStyledElement('div', {
-        display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
-    });
-
+    const simGroup = createStyledElement('div', { padding: '10px 15px', background: '#fff', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px' });
+    const controlRow = createStyledElement('div', { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '15px' });
     const headerInputGroup = document.querySelector('header .input-group');
     if (headerInputGroup) controlRow.appendChild(headerInputGroup);
 
@@ -65,6 +47,7 @@ function initializeSimulationView() {
     
     extraControls.innerHTML = `
         <button id="runSimBtn" style="background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; margin-left: 5px;">ルート検索</button>
+        <button id="addSimBtn" style="display: none; background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">さらに300検索</button>
         <button id="toggleRouteHighlightBtn" style="display: none; background-color: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">ルート表示ON</button>
         <button id="toggleSimTextBtn" style="display: none; background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">テキスト表示</button>
         <button id="toggleTableCheckBtn" style="display: none; background-color: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem;">消し込み</button>
@@ -77,18 +60,9 @@ function initializeSimulationView() {
         </div>
 
         <div id="ticket-inputs-area" style="display: none; align-items: center; flex-wrap: wrap; gap: 8px; border: 1px solid #eee; padding: 5px; border-radius: 4px; margin-left: 10px; background: #fff;">
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold;">にゃん:</label>
-                <input type="number" id="simTicketNyanko" value="${limits.nyanko}" style="width: 50px; padding: 4px;">
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold;">福引:</label>
-                <input type="number" id="simTicketFukubiki" value="${limits.fukubiki}" style="width: 60px; padding: 4px;">
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <label style="font-size: 0.8rem; font-weight: bold;">福引G:</label>
-                <input type="number" id="simTicketFukubikiG" value="${limits.fukubikiG}" style="width: 50px; padding: 4px;">
-            </div>
+            <div style="display: flex; align-items: center; gap: 5px;"><label style="font-size: 0.8rem; font-weight: bold;">にゃん:</label><input type="number" id="simTicketNyanko" value="${limits.nyanko}" style="width: 50px; padding: 4px;"></div>
+            <div style="display: flex; align-items: center; gap: 5px;"><label style="font-size: 0.8rem; font-weight: bold;">福引:</label><input type="number" id="simTicketFukubiki" value="${limits.fukubiki}" style="width: 60px; padding: 4px;"></div>
+            <div style="display: flex; align-items: center; gap: 5px;"><label style="font-size: 0.8rem; font-weight: bold;">福引G:</label><input type="number" id="simTicketFukubikiG" value="${limits.fukubikiG}" style="width: 50px; padding: 4px;"></div>
             <button id="updateTicketBtn" style="padding: 4px 8px; font-size: 0.75rem;">更新</button>
         </div>
 
@@ -101,25 +75,16 @@ function initializeSimulationView() {
     controlRow.appendChild(extraControls);
     simGroup.appendChild(controlRow);
 
-    const customPanel = createStyledElement('div', {
-        display: 'none', marginTop: '10px', padding: '10px',
-        borderTop: '1px dashed #ccc', backgroundColor: '#fdfdfd'
-    }, { id: 'custom-weight-panel' });
-
+    const customPanel = createStyledElement('div', { display: 'none', marginTop: '10px', padding: '10px', borderTop: '1px dashed #ccc', backgroundColor: '#fdfdfd' }, { id: 'custom-weight-panel' });
     customPanel.innerHTML = `<div style="display: flex; gap: 10px; margin-bottom: 8px;"><div style="font-size: 0.75rem; font-weight: bold; color: #666;">スコア重みづけ設定</div><div id="reset-weights-btn" style="font-size: 0.7rem; color: #007bff; text-decoration: underline; cursor: pointer;">リセット</div></div>`;
     simGroup.appendChild(customPanel);
     simContainer.appendChild(simGroup);
 
-    const resultDisplay = createStyledElement('div', {
-        marginTop: '10px', padding: '15px', border: '1px solid #28a745',
-        backgroundColor: '#f9fff9', whiteSpace: 'pre-wrap', fontFamily: 'monospace',
-        fontSize: '0.85rem', borderRadius: '8px', lineHeight: '1.4',
-        display: window.viewData.showSimText ? 'block' : 'none'
-    }, { id: 'sim-result-text' });
-
+    const resultDisplay = createStyledElement('div', { marginTop: '10px', padding: '15px', border: '1px solid #28a745', backgroundColor: '#f9fff9', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem', borderRadius: '8px', lineHeight: '1.4', display: window.viewData.showSimText ? 'block' : 'none' }, { id: 'sim-result-text' });
     simContainer.appendChild(resultDisplay);
 
-    document.getElementById('runSimBtn').onclick = runSimulation;
+    document.getElementById('runSimBtn').onclick = () => runSimulation(false);
+    document.getElementById('addSimBtn').onclick = () => runSimulation(true);
     document.getElementById('toggleRouteHighlightBtn').onclick = toggleRouteHighlight;
     document.getElementById('toggleSimTextBtn').onclick = toggleSimTextMode;
     document.getElementById('toggleTableCheckBtn').onclick = toggleTableCheckMode;
@@ -128,15 +93,10 @@ function initializeSimulationView() {
     const displayWrapper = document.getElementById('ticket-display-wrapper');
     const inputsArea = document.getElementById('ticket-inputs-area');
     const updateBtn = document.getElementById('updateTicketBtn');
-
     displayWrapper.onclick = () => { displayWrapper.style.display = 'none'; inputsArea.style.display = 'flex'; };
     updateBtn.onclick = () => {
         inputsArea.style.display = 'none'; displayWrapper.style.display = 'flex';
-        window.viewData.ticketLimits = {
-            nyanko: parseInt(document.getElementById('simTicketNyanko').value) || 0,
-            fukubiki: parseInt(document.getElementById('simTicketFukubiki').value) || 0,
-            fukubikiG: parseInt(document.getElementById('simTicketFukubikiG').value) || 0
-        };
+        window.viewData.ticketLimits = { nyanko: parseInt(document.getElementById('simTicketNyanko').value) || 0, fukubiki: parseInt(document.getElementById('simTicketFukubiki').value) || 0, fukubikiG: parseInt(document.getElementById('simTicketFukubikiG').value) || 0 };
         if (typeof window.saveTicketSettingsToStorage === 'function') window.saveTicketSettingsToStorage();
     };
 
@@ -148,51 +108,97 @@ function initializeSimulationView() {
     
     if (window.viewData.lastSimResult) {
         ['toggleRouteHighlightBtn', 'toggleSimTextBtn', 'toggleTableCheckBtn'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'inline-block';
+            const el = document.getElementById(id); if (el) el.style.display = 'inline-block';
         });
+        updateAddSimBtnVisibility();
         displaySimulationResult(window.viewData.lastSimResult);
     }
 }
 
-function toggleSimTextMode() {
-    window.viewData.showSimText = !window.viewData.showSimText;
-    updateSimTextButtonState();
-    const display = document.getElementById('sim-result-text');
-    if (display) {
-        display.style.display = window.viewData.showSimText ? 'block' : 'none';
+function updateAddSimBtnVisibility() {
+    const btn = document.getElementById('addSimBtn');
+    if (!btn) return;
+    const result = window.viewData.lastSimResult;
+    const limits = window.viewData.ticketLimits || { nyanko: 0, fukubiki: 0, fukubikiG: 0 };
+    const totalTickets = limits.nyanko + limits.fukubiki + limits.fukubikiG;
+    
+    // 検索結果があり、チケット残数があり、かつ300の倍数（制限にかかった可能性が高い）場合に表示
+    if (result && result.path && result.path.length < totalTickets && result.path.length % 300 === 0) {
+        btn.style.display = 'inline-block';
+    } else {
+        btn.style.display = 'none';
     }
 }
 
-function updateSimTextButtonState() {
-    const btn = document.getElementById('toggleSimTextBtn');
-    if (!btn) return;
-    const isActive = !!window.viewData.showSimText;
-    btn.textContent = isActive ? 'テキスト表示ON' : 'テキスト表示OFF';
-    btn.style.backgroundColor = isActive ? '#28a745' : '#6c757d';
+function runSimulation(isExtension = false) {
+    const seedInput = document.getElementById('seed');
+    const initialSeed = parseInt(seedInput.value, 10);
+    if (isNaN(initialSeed)) return;
+    const limits = window.viewData.ticketLimits || { nyanko: 100, fukubiki: 100, fukubikiG: 100 };
+    
+    if (isExtension) {
+        if (typeof showSimToast === 'function') showSimToast("負荷軽減のため追加で300ロール検索します...");
+    } else {
+        const totalTickets = limits.nyanko + limits.fukubiki + limits.fukubikiG;
+        if (totalTickets > 300) {
+            if (typeof showSimToast === 'function') showSimToast("枚数が多いため、最初の300ロールを検索します");
+        } else {
+            if (typeof showSimToast === 'function') showSimToast("ルート検索を開始します...");
+        }
+    }
+
+    let weights = null;
+    if (window.isCustomMode) {
+        weights = { groups: {}, items: {}, costs: {} };
+        document.querySelectorAll('.custom-group-weight-input').forEach(input => { weights.groups[input.dataset.key] = parseFloat(input.value) || 0; });
+        document.querySelectorAll('.custom-item-weight-input').forEach(input => { if (input.value !== "") weights.items[input.dataset.itemid] = parseFloat(input.value); });
+        document.querySelectorAll('.custom-cost-input').forEach(input => { weights.costs[input.dataset.type] = parseFloat(input.value); });
+    }
+
+    const activeGachaIds = viewData.gachaIds.filter(id => {
+        if (id === "0" && !displayIds.includes("0") && displayIds.includes("64")) return false;
+        if (id === "64" && !displayIds.includes("64") && displayIds.includes("0")) return false;
+        return true;
+    });
+
+    const baseState = isExtension ? (window.viewData.lastSimRawState || null) : null;
+    const result = runGachaSearch(initialSeed, 'none', limits, activeGachaIds, weights, baseState);
+
+    if (result) {
+        window.viewData.lastSimResult = result;
+        window.viewData.lastSimRawState = result.rawState; // 次回用の生状態を保存
+
+        viewData.highlightedRoute = new Map();
+        result.path.forEach((p, idx) => { viewData.highlightedRoute.set(`${p.addr}_${p.gachaId}`, idx); });
+        
+        ['toggleRouteHighlightBtn', 'toggleSimTextBtn', 'toggleTableCheckBtn'].forEach(id => {
+            const el = document.getElementById(id); if (el) el.style.display = 'inline-block';
+        });
+        
+        updateAddSimBtnVisibility();
+
+        const successMsg = (result.path.length % 300 === 0 && result.path.length < (limits.nyanko + limits.fukubiki + limits.fukubikiG))
+            ? "負荷軽減のため最初の" + result.path.length + "ロールの検索を行い、完了しました" 
+            : "ルート検索が完了しました";
+        
+        if (typeof showSimToast === 'function') showSimToast(successMsg);
+        if (typeof generateTable === 'function') generateTable();
+    } else {
+        if (typeof showSimToast === 'function') showSimToast("有効なルートが見てかりませんでした");
+    }
 }
 
 function displaySimulationResult(result) {
     const display = document.getElementById('sim-result-text');
     if (!display) return;
-    
     display.style.display = window.viewData.showSimText ? 'block' : 'none';
     display.innerHTML = "";
+    if (!result || !result.path || result.path.length === 0) { display.textContent = "有効なルートが見つかりませんでした。"; return; }
 
-    if (!result || !result.path || result.path.length === 0) {
-        display.textContent = "有効なルートが見つかりませんでした。";
-        return;
-    }
-
-    const header = createStyledElement('div', {
-        fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #28a745', paddingBottom: '4px'
-    });
-    
-    // 【修正】タイトルの文言を範囲限定であることが伝わるように変更
-    const isLimited = (result.path.length >= 300);
-    const titleText = isLimited ? "【最初の300ロール・検索結果】" : "【ルート検索結果】";
+    const header = createStyledElement('div', { fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #28a745', paddingBottom: '4px' });
+    const isLimited = (result.path.length % 300 === 0);
+    const titleText = isLimited ? "【最初の" + result.path.length + "ロール・検索結果】" : "【ルート検索結果】";
     const limitNote = isLimited ? " <span style='color:#d9534f; font-size:0.75rem;'>(負荷軽減のため範囲を制限しました)</span>" : "";
-    
     header.innerHTML = `${titleText}(闇猫目:${result.counts.DARK_NEKOME} / トレレ:${result.counts.TREASURE_RADAR})${limitNote}`;
     display.appendChild(header);
 
@@ -201,27 +207,17 @@ function displaySimulationResult(result) {
     while (i < result.path.length) {
         const rowStartIdx = i;
         const currentGachaName = result.path[i].gachaName;
-        const row = createStyledElement('div', {
-            display: 'flex', gap: '8px', marginBottom: '4px', borderBottom: '1px solid #eee'
-        });
-
+        const row = createStyledElement('div', { display: 'flex', gap: '8px', marginBottom: '4px', borderBottom: '1px solid #eee' });
         const cb = createStyledElement('input', { marginTop: '4px' }, { type: 'checkbox' });
         const spanContainer = createStyledElement('span', { lineHeight: '1.4', flex: '1' });
-        
         const rowHeader = createStyledElement('span', { color: '#d9534f', fontWeight: 'bold' }, { textContent: `[${currentGachaName}] ` });
         spanContainer.appendChild(rowHeader);
-
         let j = i;
         while (j < result.path.length && result.path[j].gachaName === currentGachaName) {
             const currentIdx = globalItemIdx;
             const step = result.path[j];
             const isChecked = currentIdx < window.viewData.checkedCount;
-
-            const itemSpan = createStyledElement('span', {
-                cursor: 'pointer', textDecoration: isChecked ? 'line-through' : 'none',
-                opacity: isChecked ? '0.4' : '1', padding: '0 2px'
-            }, { className: 'sim-item-clickable' });
-
+            const itemSpan = createStyledElement('span', { cursor: 'pointer', textDecoration: isChecked ? 'line-through' : 'none', opacity: isChecked ? '0.4' : '1', padding: '0 2px' }, { className: 'sim-item-clickable' });
             itemSpan.innerHTML = getColoredItemHtml(step.item) + (step.isReroll ? " (被り)" : "") + `<small style="color:#888;">(${step.addr})</small>`;
             itemSpan.onclick = (e) => {
                 e.stopPropagation();
@@ -230,24 +226,34 @@ function displaySimulationResult(result) {
                 if (typeof generateTable === 'function') generateTable();
             };
             spanContainer.appendChild(itemSpan);
-            if (j < result.path.length - 1 && result.path[j+1].gachaName === currentGachaName) {
-                spanContainer.appendChild(document.createTextNode('、'));
-            }
-            j++;
-            globalItemIdx++;
+            if (j < result.path.length - 1 && result.path[j+1].gachaName === currentGachaName) { spanContainer.appendChild(document.createTextNode('、')); }
+            j++; globalItemIdx++;
         }
-
         cb.checked = globalItemIdx <= window.viewData.checkedCount;
         cb.onchange = () => {
             window.viewData.checkedCount = cb.checked ? globalItemIdx : rowStartIdx;
             if (typeof UrlManager !== 'undefined') UrlManager.updateUrlParam('p', window.viewData.checkedCount);
             if (typeof generateTable === 'function') generateTable();
         };
-
         row.append(cb, spanContainer);
         display.appendChild(row);
         i = j;
     }
+}
+
+function toggleSimTextMode() {
+    window.viewData.showSimText = !window.viewData.showSimText;
+    updateSimTextButtonState();
+    const display = document.getElementById('sim-result-text');
+    if (display) { display.style.display = window.viewData.showSimText ? 'block' : 'none'; }
+}
+
+function updateSimTextButtonState() {
+    const btn = document.getElementById('toggleSimTextBtn');
+    if (!btn) return;
+    const isActive = !!window.viewData.showSimText;
+    btn.textContent = isActive ? 'テキスト表示ON' : 'テキスト表示OFF';
+    btn.style.backgroundColor = isActive ? '#28a745' : '#6c757d';
 }
 
 function toggleRouteHighlight() {
@@ -282,60 +288,6 @@ function updateTableCheckButtonState() {
     btn.style.backgroundColor = isActive ? '#28a745' : '#6c757d';
 }
 
-function runSimulation() {
-    const seedInput = document.getElementById('seed');
-    const initialSeed = parseInt(seedInput.value, 10);
-    if (isNaN(initialSeed)) return;
-    const limits = window.viewData.ticketLimits || { nyanko: 100, fukubiki: 100, fukubikiG: 100 };
-    
-    const totalTickets = limits.nyanko + limits.fukubiki + limits.fukubikiG;
-    const isLimited = (totalTickets > 300);
-
-    if (isLimited) {
-        if (typeof showSimToast === 'function') showSimToast("枚数が多いため、先頭300ロールを検索します");
-    } else {
-        if (typeof showSimToast === 'function') showSimToast("ルート検索を開始します...");
-    }
-
-    let weights = null;
-    if (window.isCustomMode) {
-        weights = { groups: {}, items: {}, costs: {} };
-        document.querySelectorAll('.custom-group-weight-input').forEach(input => { weights.groups[input.dataset.key] = parseFloat(input.value) || 0; });
-        document.querySelectorAll('.custom-item-weight-input').forEach(input => { if (input.value !== "") weights.items[input.dataset.itemid] = parseFloat(input.value); });
-        document.querySelectorAll('.custom-cost-input').forEach(input => { weights.costs[input.dataset.type] = parseFloat(input.value); });
-    }
-
-    const activeGachaIds = viewData.gachaIds.filter(id => {
-        if (id === "0" && !displayIds.includes("0") && displayIds.includes("64")) return false;
-        if (id === "64" && !displayIds.includes("64") && displayIds.includes("0")) return false;
-        return true;
-    });
-
-    const result = runGachaSearch(initialSeed, 'none', limits, activeGachaIds, weights);
-    window.viewData.lastSimResult = result;
-
-    if (result) {
-        viewData.highlightedRoute = new Map();
-        result.path.forEach((p, idx) => { viewData.highlightedRoute.set(`${p.addr}_${p.gachaId}`, idx); });
-        
-        ['toggleRouteHighlightBtn', 'toggleSimTextBtn', 'toggleTableCheckBtn'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.style.display = 'inline-block';
-        });
-        
-        // 【修正】トーストのメッセージを要望に合わせて変更
-        const successMsg = isLimited 
-            ? "負荷軽減のため最初の300ロールの検索を行い、完了しました" 
-            : "ルート検索が完了しました";
-        
-        if (typeof showSimToast === 'function') showSimToast(successMsg);
-        
-        if (typeof generateTable === 'function') generateTable();
-    } else {
-        if (typeof showSimToast === 'function') showSimToast("有効なルートが見つかりませんでした");
-    }
-}
-
 function getColoredItemHtml(name) {
     const item = Object.values(itemMaster).find(it => it.name === name);
     if (!item) return name;
@@ -348,7 +300,6 @@ function getColoredItemHtml(name) {
 
 function toggleCustomMode() { window.isCustomMode = !window.isCustomMode; const panel = document.getElementById('custom-weight-panel'); if (panel) panel.style.display = window.isCustomMode ? 'block' : 'none'; updateCustomButtonText(); saveSettingsToStorage(); }
 function updateCustomButtonText() { const btn = document.getElementById('toggleCustomBtn'); if (btn) btn.textContent = window.isCustomMode ? 'カスタムON' : 'カスタム'; }
-
 function saveSettingsToStorage() {
     const settings = { isCustomMode: window.isCustomMode, groups: {}, items: {}, costs: {} };
     document.querySelectorAll('.custom-group-weight-input').forEach(input => { settings.groups[input.dataset.key] = parseFloat(input.value); });
@@ -356,7 +307,6 @@ function saveSettingsToStorage() {
     document.querySelectorAll('.custom-cost-input').forEach(input => { settings.costs[input.dataset.type] = parseFloat(input.value); });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 }
-
 function loadSettingsFromStorage() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) { try { const parsed = JSON.parse(saved); window.isCustomMode = !!parsed.isCustomMode; } catch(e){} }

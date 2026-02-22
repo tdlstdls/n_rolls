@@ -1,5 +1,6 @@
 # Windowsのシステムファイル
 desktop.ini
+.git/desktop.ini
 Thumbs.db
 
 # VS Codeの設定（個人設定を共有したくない場合）
